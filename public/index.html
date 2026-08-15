@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DUAL FREQUENCY</title>
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Arvo:ital,wght@0,400;0,700;1,400&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <div class="scanlines"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 44 44" width="34" height="34" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="22" cy="22" r="20" fill="var(--panel)" stroke="var(--ink)" stroke-width="2"/>
+        <g stroke="var(--ink-dim)" stroke-width="1.4" stroke-linecap="round">
+          <line x1="22" y1="4" x2="22" y2="8"/>
+          <line x1="22" y1="36" x2="22" y2="40"/>
+          <line x1="4" y1="22" x2="8" y2="22"/>
+          <line x1="36" y1="22" x2="40" y2="22"/>
+          <line x1="9.5" y1="9.5" x2="12.3" y2="12.3"/>
+          <line x1="31.7" y1="9.5" x2="34.5" y2="12.3"/>
+          <line x1="9.5" y1="34.5" x2="12.3" y2="31.7"/>
+          <line x1="31.7" y1="34.5" x2="34.5" y2="31.7"/>
+        </g>
+        <circle cx="22" cy="22" r="14" fill="var(--cream-bright)" stroke="var(--panel-border)" stroke-width="1.5"/>
+        <line x1="22" y1="22" x2="30" y2="12" stroke="var(--dial-red)" stroke-width="2.4" stroke-linecap="round"/>
+        <circle cx="22" cy="22" r="2.6" fill="var(--dial-red)"/>
+        <circle cx="30" cy="12" r="1.6" fill="var(--tune-green)"/>
+      </svg>
+      <span class="brand-text">CHARTS<span class="brand-sub">// live music ledger</span></span>
+    </div>
+    <div class="status-pill" id="status-pill">
+      <span class="dot"></span> EN VIVO
+    </div>
+  </header>
+
+  <section class="ticker-row" id="ticker-row">
+    <!-- Se llena con JS: una tarjeta "sonando ahora" por cuenta -->
+  </section>
+
+  <main class="main">
+    <div class="chart-controls">
+      <div class="tabs" id="scope-tabs">
+        <button class="tab active" data-scope="global">CHART GLOBAL</button>
+        <button class="tab" data-scope="individual" data-usuario="">INDIVIDUAL</button>
+      </div>
+      <div class="period-select">
+        <label for="periodo">Ventana</label>
+        <select id="periodo">
+          <option value="7" selected>7 días</option>
+          <option value="1">Hoy</option>
+          <option value="30">30 días</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="user-subtabs" id="user-subtabs" hidden></div>
+
+    <div class="chart-header-row">
+      <span class="col-pos">#</span>
+      <span class="col-track">Canción</span>
+      <span class="col-plays">Plays</span>
+      <span class="col-change">Var.</span>
+    </div>
+
+    <ol class="chart-list" id="chart-list">
+      <!-- Filas generadas por JS -->
+    </ol>
+
+    <p class="empty-state" id="empty-state" hidden>
+      Todavía no hay suficientes datos en esta ventana. Dejá sonando música
+      un rato y el ranking se va a ir armando solo.
+    </p>
+  </main>
+
+  <footer class="footer">
+    <span>Actualiza cada 20s · sonando ahora</span>
+    <span>·</span>
+    <span>Historial cada 5 min</span>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
+
