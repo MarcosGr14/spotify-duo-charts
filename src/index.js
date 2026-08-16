@@ -6,6 +6,7 @@ const chartsApiRouter = require('./chartsApi');
 const {
   pollCurrentlyPlaying,
   pollRecentlyPlayed,
+  completarImagenesDeArtistas,
   obtenerUsuariosActivos
 } = require('./poller');
 
@@ -53,6 +54,11 @@ setInterval(async () => {
     const usuarios = await obtenerUsuariosActivos();
     for (const usuario of usuarios) {
       await pollRecentlyPlayed(usuario);
+    }
+    // Con cualquier cuenta activa alcanza para pedirle a Spotify
+    // las fotos de artistas que todavía falten
+    if (usuarios.length) {
+      await completarImagenesDeArtistas(usuarios[0]);
     }
   } catch (err) {
     console.error('[ciclo recently-played] Error:', err.message);
