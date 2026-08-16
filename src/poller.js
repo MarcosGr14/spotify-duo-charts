@@ -77,29 +77,38 @@ async function pollRecentlyPlayed(usuario) {
 // currently-playing) traen una versión resumida SIN foto. Para
 // conseguir la foto real hay que pedirle a Spotify el perfil completo
 // del artista aparte. Esta función busca los que todavía no tienen
-// imagen guardada y se las completa en lotes de hasta 50.
+// imagen guardada y se las completa una por una (Spotify eliminó el
+// endpoint en lote "Get Several Artists" en la migración de feb. 2026
+// para apps en modo Development, así que ya no se puede pedir de a
+// varios juntos).
 // ------------------------------------------------------------
 async function completarImagenesDeArtistas(usuario) {
   try {
     const { rows } = await db.query(
-      `SELECT id, spotify_artist_id FROM artistas WHERE imagen_url IS NULL LIMIT 50`
+      `SELECT id, spotify_artist_id FROM artistas WHERE imagen_url IS NULL LIMIT 15`
     );
     if (!rows.length) return;
 
     const token = await obtenerAccessTokenValido(usuario.id);
-    const ids = rows.map((r) => r.spotify_artist_id).join(',');
-    const resp = await axios.get(`https://api.spotify.com/v1/artists?ids=${ids}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
 
-    for (const artistaSpotify of resp.data.artists) {
-      if (!artistaSpotify) continue;
-      const imagenUrl = artistaSpotify.images?.[0]?.url;
-      if (imagenUrl) {
-        await db.query(`UPDATE artistas SET imagen_url = $1 WHERE spotify_artist_id = $2`, [
-          imagenUrl,
-          artistaSpotify.id
-        ]);
+    for (const artista of rows) {
+      try {
+        const resp = await axios.get(
+          `https://api.spotify.com/v1/artists/${artista.spotify_artist_id}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const imagenUrl = resp.data.images?.[0]?.url;
+        if (imagenUrl) {
+          await db.query(`UPDATE artistas SET imagen_url = $1 WHERE id = $2`, [
+            imagenUrl,
+            artista.id
+          ]);
+        }
+      } catch (errIndividual) {
+        console.error(
+          `[imagen artista ${artista.spotify_artist_id}] Error:`,
+          errIndividual.response?.data || errIndividual.message
+        );
       }
     }
   } catch (err) {
