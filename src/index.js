@@ -10,23 +10,38 @@ const {
 } = require('./poller');
 
 const app = express();
+
+// Red de seguridad: si algo se escapa sin capturar, lo logueamos
+// pero NO dejamos que tumbe el servidor entero.
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
 app.use(authRouter);
 app.use('/api', chartsApiRouter);
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Escuchamos explícitamente en 127.0.0.1 (no en localhost) para que
-// coincida siempre con el redirect_uri registrado en Spotify.
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`Servidor escuchando en http://127.0.0.1:${PORT}`);
+app.listen(PORT, () => {
+  console.log(`Servidor escuchando en el puerto ${PORT}`);
 });
 
 // ------------------------------------------------------------
 // Ciclo de polling: currently-playing (frecuente, para el widget en vivo)
+// Envuelto en try/catch para que un error de red o de base de datos
+// no tumbe todo el proceso — solo se saltea ese ciclo y reintenta
+// en el próximo intervalo.
 // ------------------------------------------------------------
 setInterval(async () => {
-  const usuarios = await obtenerUsuariosActivos();
-  for (const usuario of usuarios) {
-    await pollCurrentlyPlaying(usuario);
+  try {
+    const usuarios = await obtenerUsuariosActivos();
+    for (const usuario of usuarios) {
+      await pollCurrentlyPlaying(usuario);
+    }
+  } catch (err) {
+    console.error('[ciclo currently-playing] Error:', err.message);
   }
 }, INTERVALO_CURRENTLY_MS);
 
@@ -34,9 +49,13 @@ setInterval(async () => {
 // Ciclo de polling: recently-played (menos frecuente, historial real)
 // ------------------------------------------------------------
 setInterval(async () => {
-  const usuarios = await obtenerUsuariosActivos();
-  for (const usuario of usuarios) {
-    await pollRecentlyPlayed(usuario);
+  try {
+    const usuarios = await obtenerUsuariosActivos();
+    for (const usuario of usuarios) {
+      await pollRecentlyPlayed(usuario);
+    }
+  } catch (err) {
+    console.error('[ciclo recently-played] Error:', err.message);
   }
 }, INTERVALO_HISTORIAL_MS);
 
