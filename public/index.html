@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>DUAL FREQUENCY</title>
+<title>CHARTS // Live Music Ledger</title>
 <link rel="icon" type="image/svg+xml" href="/icon.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Arvo:ital,wght@0,400;0,700;1,400&family=VT323&display=swap" rel="stylesheet">
@@ -59,11 +59,17 @@
       </div>
     </div>
 
+    <div class="type-tabs" id="type-tabs">
+      <button class="type-tab active" data-tipo="canciones">Canciones</button>
+      <button class="type-tab" data-tipo="artistas">Artistas</button>
+      <button class="type-tab" data-tipo="albumes">Álbumes</button>
+    </div>
+
     <div class="user-subtabs" id="user-subtabs" hidden></div>
 
     <div class="chart-header-row">
       <span class="col-pos">#</span>
-      <span class="col-track">Canción</span>
+      <span class="col-track" id="col-track-label">Canción</span>
       <span class="col-plays">Plays</span>
       <span class="col-change">Var.</span>
     </div>
@@ -87,4 +93,3 @@
   <script src="/app.js"></script>
 </body>
 </html>
-

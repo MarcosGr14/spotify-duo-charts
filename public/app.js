@@ -2,12 +2,15 @@ const state = {
   scope: 'global',
   usuarioId: null,
   dias: 7,
+  tipo: 'canciones',
   usuarios: []
 };
 
 const el = {
   ticker: document.getElementById('ticker-row'),
   tabs: document.getElementById('scope-tabs'),
+  typeTabs: document.getElementById('type-tabs'),
+  colTrackLabel: document.getElementById('col-track-label'),
   userSubtabs: document.getElementById('user-subtabs'),
   periodo: document.getElementById('periodo'),
   chartList: document.getElementById('chart-list'),
@@ -79,7 +82,7 @@ async function actualizarTicker() {
 // Ranking / chart principal
 // ------------------------------------------------------------
 async function actualizarChart() {
-  const params = new URLSearchParams({ scope: state.scope, dias: state.dias });
+  const params = new URLSearchParams({ scope: state.scope, dias: state.dias, tipo: state.tipo });
   if (state.scope === 'individual' && state.usuarioId) {
     params.set('usuario_id', state.usuarioId);
   }
@@ -95,16 +98,18 @@ async function actualizarChart() {
     }
     el.emptyState.hidden = true;
 
+    const esAvatar = state.tipo === 'artistas';
+
     el.chartList.innerHTML = data
       .map(
         (item) => `
         <li class="chart-row${item.posicion <= 3 ? ' top3' : ''}">
           <span class="col-pos">${item.posicion}</span>
           <div class="track-cell">
-            <img class="track-art" src="${item.portada || placeholderArt()}" alt="" />
+            <img class="track-art${esAvatar ? ' avatar' : ''}" src="${item.portada || placeholderArt()}" alt="" />
             <div class="track-meta">
-              <div class="track-name">${item.cancion}</div>
-              <div class="track-artist">${item.artistas || ''}</div>
+              <div class="track-name">${item.nombre}</div>
+              ${item.subtitulo ? `<div class="track-artist">${item.subtitulo}</div>` : ''}
             </div>
           </div>
           <span class="col-plays">${item.veces_escuchada}×</span>
@@ -167,6 +172,22 @@ el.tabs.querySelectorAll('.tab').forEach((tab) => {
     tab.classList.add('active');
     state.scope = tab.dataset.scope;
     renderUserSubtabs();
+    actualizarChart();
+  });
+});
+
+const LABELS_POR_TIPO = {
+  canciones: 'Canción',
+  artistas: 'Artista',
+  albumes: 'Álbum'
+};
+
+el.typeTabs.querySelectorAll('.type-tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    el.typeTabs.querySelectorAll('.type-tab').forEach((t) => t.classList.remove('active'));
+    tab.classList.add('active');
+    state.tipo = tab.dataset.tipo;
+    el.colTrackLabel.textContent = LABELS_POR_TIPO[state.tipo];
     actualizarChart();
   });
 });

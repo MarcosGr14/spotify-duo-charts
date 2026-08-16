@@ -46,7 +46,149 @@ router.get('/currently-playing', async (_req, res) => {
 });
 
 // ------------------------------------------------------------
-// GET /api/charts?scope=global|individual&usuario_id=1&dias=7
+// Consultas SQL por tipo de ranking. Las tres devuelven las mismas
+// columnas (id, nombre, subtitulo, portada, posicion, veces_escuchada,
+// posicion_anterior) para que el frontend no tenga que distinguir casos.
+// ------------------------------------------------------------
+const QUERY_CANCIONES = `
+  WITH periodo_actual AS (
+    SELECT r.cancion_id, COUNT(*) AS plays
+    FROM reproducciones r
+    WHERE r.reproducido_en >= now() - make_interval(days => $1)
+      AND ($2::int IS NULL OR r.usuario_id = $2::int)
+    GROUP BY r.cancion_id
+  ),
+  periodo_anterior AS (
+    SELECT r.cancion_id, COUNT(*) AS plays
+    FROM reproducciones r
+    WHERE r.reproducido_en >= now() - make_interval(days => $1 * 2)
+      AND r.reproducido_en < now() - make_interval(days => $1)
+      AND ($2::int IS NULL OR r.usuario_id = $2::int)
+    GROUP BY r.cancion_id
+  ),
+  rank_actual AS (
+    SELECT cancion_id, plays, RANK() OVER (ORDER BY plays DESC) AS posicion
+    FROM periodo_actual
+  ),
+  rank_anterior AS (
+    SELECT cancion_id, RANK() OVER (ORDER BY plays DESC) AS posicion
+    FROM periodo_anterior
+  )
+  SELECT
+    c.id AS id,
+    c.nombre AS nombre,
+    string_agg(DISTINCT ar.nombre, ', ') AS subtitulo,
+    al.imagen_url AS portada,
+    ra.posicion AS posicion,
+    ra.plays AS veces_escuchada,
+    ran.posicion AS posicion_anterior
+  FROM rank_actual ra
+  JOIN canciones c ON c.id = ra.cancion_id
+  LEFT JOIN albumes al ON al.id = c.album_id
+  LEFT JOIN cancion_artistas ca ON ca.cancion_id = c.id
+  LEFT JOIN artistas ar ON ar.id = ca.artista_id
+  LEFT JOIN rank_anterior ran ON ran.cancion_id = ra.cancion_id
+  GROUP BY c.id, c.nombre, al.imagen_url, ra.posicion, ra.plays, ran.posicion
+  ORDER BY ra.posicion
+  LIMIT 20
+`;
+
+const QUERY_ARTISTAS = `
+  WITH periodo_actual AS (
+    SELECT ca.artista_id, COUNT(*) AS plays
+    FROM reproducciones r
+    JOIN cancion_artistas ca ON ca.cancion_id = r.cancion_id
+    WHERE r.reproducido_en >= now() - make_interval(days => $1)
+      AND ($2::int IS NULL OR r.usuario_id = $2::int)
+    GROUP BY ca.artista_id
+  ),
+  periodo_anterior AS (
+    SELECT ca.artista_id, COUNT(*) AS plays
+    FROM reproducciones r
+    JOIN cancion_artistas ca ON ca.cancion_id = r.cancion_id
+    WHERE r.reproducido_en >= now() - make_interval(days => $1 * 2)
+      AND r.reproducido_en < now() - make_interval(days => $1)
+      AND ($2::int IS NULL OR r.usuario_id = $2::int)
+    GROUP BY ca.artista_id
+  ),
+  rank_actual AS (
+    SELECT artista_id, plays, RANK() OVER (ORDER BY plays DESC) AS posicion
+    FROM periodo_actual
+  ),
+  rank_anterior AS (
+    SELECT artista_id, RANK() OVER (ORDER BY plays DESC) AS posicion
+    FROM periodo_anterior
+  )
+  SELECT
+    a.id AS id,
+    a.nombre AS nombre,
+    NULL AS subtitulo,
+    a.imagen_url AS portada,
+    ra.posicion AS posicion,
+    ra.plays AS veces_escuchada,
+    ran.posicion AS posicion_anterior
+  FROM rank_actual ra
+  JOIN artistas a ON a.id = ra.artista_id
+  LEFT JOIN rank_anterior ran ON ran.artista_id = ra.artista_id
+  ORDER BY ra.posicion
+  LIMIT 20
+`;
+
+const QUERY_ALBUMES = `
+  WITH periodo_actual AS (
+    SELECT c.album_id, COUNT(*) AS plays
+    FROM reproducciones r
+    JOIN canciones c ON c.id = r.cancion_id
+    WHERE c.album_id IS NOT NULL
+      AND r.reproducido_en >= now() - make_interval(days => $1)
+      AND ($2::int IS NULL OR r.usuario_id = $2::int)
+    GROUP BY c.album_id
+  ),
+  periodo_anterior AS (
+    SELECT c.album_id, COUNT(*) AS plays
+    FROM reproducciones r
+    JOIN canciones c ON c.id = r.cancion_id
+    WHERE c.album_id IS NOT NULL
+      AND r.reproducido_en >= now() - make_interval(days => $1 * 2)
+      AND r.reproducido_en < now() - make_interval(days => $1)
+      AND ($2::int IS NULL OR r.usuario_id = $2::int)
+    GROUP BY c.album_id
+  ),
+  rank_actual AS (
+    SELECT album_id, plays, RANK() OVER (ORDER BY plays DESC) AS posicion
+    FROM periodo_actual
+  ),
+  rank_anterior AS (
+    SELECT album_id, RANK() OVER (ORDER BY plays DESC) AS posicion
+    FROM periodo_anterior
+  )
+  SELECT
+    al.id AS id,
+    al.nombre AS nombre,
+    string_agg(DISTINCT ar.nombre, ', ') AS subtitulo,
+    al.imagen_url AS portada,
+    ra.posicion AS posicion,
+    ra.plays AS veces_escuchada,
+    ran.posicion AS posicion_anterior
+  FROM rank_actual ra
+  JOIN albumes al ON al.id = ra.album_id
+  LEFT JOIN canciones c3 ON c3.album_id = al.id
+  LEFT JOIN cancion_artistas ca3 ON ca3.cancion_id = c3.id
+  LEFT JOIN artistas ar ON ar.id = ca3.artista_id
+  LEFT JOIN rank_anterior ran ON ran.album_id = ra.album_id
+  GROUP BY al.id, al.nombre, al.imagen_url, ra.posicion, ra.plays, ran.posicion
+  ORDER BY ra.posicion
+  LIMIT 20
+`;
+
+const QUERIES_POR_TIPO = {
+  canciones: QUERY_CANCIONES,
+  artistas: QUERY_ARTISTAS,
+  albumes: QUERY_ALBUMES
+};
+
+// ------------------------------------------------------------
+// GET /api/charts?scope=global|individual&usuario_id=1&dias=7&tipo=canciones|artistas|albumes
 // Devuelve el ranking con posición actual y variación vs el
 // período anterior (para las flechas de sube/baja)
 // ------------------------------------------------------------
@@ -57,56 +199,10 @@ router.get('/charts', async (req, res) => {
     scope === 'individual' && req.query.usuario_id
       ? parseInt(req.query.usuario_id, 10)
       : null;
+  const tipo = QUERIES_POR_TIPO[req.query.tipo] ? req.query.tipo : 'canciones';
 
   try {
-    const { rows } = await db.query(
-      `
-      WITH periodo_actual AS (
-        SELECT r.cancion_id, COUNT(*) AS plays
-        FROM reproducciones r
-        WHERE r.reproducido_en >= now() - make_interval(days => $1)
-          AND ($2::int IS NULL OR r.usuario_id = $2::int)
-        GROUP BY r.cancion_id
-      ),
-      periodo_anterior AS (
-        SELECT r.cancion_id, COUNT(*) AS plays
-        FROM reproducciones r
-        WHERE r.reproducido_en >= now() - make_interval(days => $1 * 2)
-          AND r.reproducido_en < now() - make_interval(days => $1)
-          AND ($2::int IS NULL OR r.usuario_id = $2::int)
-        GROUP BY r.cancion_id
-      ),
-      rank_actual AS (
-        SELECT cancion_id, plays,
-               RANK() OVER (ORDER BY plays DESC) AS posicion
-        FROM periodo_actual
-      ),
-      rank_anterior AS (
-        SELECT cancion_id,
-               RANK() OVER (ORDER BY plays DESC) AS posicion
-        FROM periodo_anterior
-      )
-      SELECT
-        c.id AS cancion_id,
-        c.nombre AS cancion,
-        al.nombre AS album,
-        al.imagen_url AS portada,
-        string_agg(DISTINCT ar.nombre, ', ') AS artistas,
-        ra.posicion AS posicion,
-        ra.plays AS veces_escuchada,
-        ran.posicion AS posicion_anterior
-      FROM rank_actual ra
-      JOIN canciones c ON c.id = ra.cancion_id
-      LEFT JOIN albumes al ON al.id = c.album_id
-      LEFT JOIN cancion_artistas ca ON ca.cancion_id = c.id
-      LEFT JOIN artistas ar ON ar.id = ca.artista_id
-      LEFT JOIN rank_anterior ran ON ran.cancion_id = ra.cancion_id
-      GROUP BY c.id, c.nombre, al.nombre, al.imagen_url, ra.posicion, ra.plays, ran.posicion
-      ORDER BY ra.posicion
-      LIMIT 20
-      `,
-      [dias, usuarioId]
-    );
+    const { rows } = await db.query(QUERIES_POR_TIPO[tipo], [dias, usuarioId]);
 
     const resultado = rows.map((r) => ({
       ...r,

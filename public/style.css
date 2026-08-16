@@ -285,6 +285,40 @@ body {
   margin: 10px 0 18px;
 }
 
+.type-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 14px;
+  border-top: 1px dashed var(--panel-border);
+  padding-top: 14px;
+}
+
+.type-tab {
+  font-family: 'Arvo', serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-dim);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.type-tab:hover { color: var(--ink); }
+
+.type-tab.active {
+  color: var(--ink);
+  font-weight: 700;
+  background: var(--cream-bright);
+  border-color: var(--panel-border);
+}
+
+.track-art.avatar,
+.ticker-art.avatar {
+  border-radius: 50%;
+}
+
 .user-subtabs button {
   background: var(--cream-bright);
   border: 1px solid var(--panel-border);
