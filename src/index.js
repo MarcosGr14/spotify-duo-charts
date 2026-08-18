@@ -3,6 +3,7 @@ const express = require('express');
 const { PORT, INTERVALO_CURRENTLY_MS, INTERVALO_HISTORIAL_MS } = require('./config');
 const { router: authRouter } = require('./spotifyAuth');
 const chartsApiRouter = require('./chartsApi');
+const db = require('./db');
 const {
   pollCurrentlyPlaying,
   pollRecentlyPlayed,
@@ -23,6 +24,20 @@ process.on('uncaughtException', (err) => {
 
 app.use(authRouter);
 app.use('/api', chartsApiRouter);
+// ------------------------------------------------------------
+// GET /health — para el monitor de uptime. Chequea que el servidor
+// responda Y que la base de datos esté realmente accesible (no solo
+// que Express esté vivo), que es la falla más probable en este proyecto.
+// ------------------------------------------------------------
+app.get('/health', async (_req, res) => {
+  try {
+    await db.query('SELECT 1');
+    res.status(200).json({ status: 'ok', db: 'connected', timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: 'error', db: 'disconnected', error: err.message });
+  }
+});
+
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.listen(PORT, () => {
