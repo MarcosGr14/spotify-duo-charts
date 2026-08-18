@@ -6,6 +6,7 @@ module.exports = {
   SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID,
   SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET,
   SPOTIFY_REDIRECT_URI: process.env.SPOTIFY_REDIRECT_URI,
+  ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
   // Cada cuántos ms se consulta "currently-playing" (widget en vivo)
   INTERVALO_CURRENTLY_MS: 20 * 1000,
   // Cada cuántos ms se consulta "recently-played" (historial real para los charts)

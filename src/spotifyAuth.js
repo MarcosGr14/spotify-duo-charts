@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
 const db = require('./db');
+const { encrypt, decryptSafe } = require('./crypto');
 const {
   SPOTIFY_CLIENT_ID,
   SPOTIFY_CLIENT_SECRET,
@@ -93,8 +94,8 @@ router.get('/callback', async (req, res) => {
         perfil.id,
         perfil.display_name || persona,
         perfil.images?.[0]?.url || null,
-        access_token,
-        refresh_token,
+        encrypt(access_token),
+        encrypt(refresh_token),
         tokenExpiraEn
       ]
     );
@@ -118,14 +119,17 @@ async function obtenerAccessTokenValido(usuarioId) {
   const usuario = rows[0];
   if (!usuario) throw new Error(`Usuario ${usuarioId} no encontrado`);
 
+  const accessTokenActual = decryptSafe(usuario.access_token);
+  const refreshTokenActual = decryptSafe(usuario.refresh_token);
+
   const yaExpiro = new Date(usuario.token_expira_en) <= new Date();
-  if (!yaExpiro) return usuario.access_token;
+  if (!yaExpiro) return accessTokenActual;
 
   const resp = await axios.post(
     'https://accounts.spotify.com/api/token',
     new URLSearchParams({
       grant_type: 'refresh_token',
-      refresh_token: usuario.refresh_token
+      refresh_token: refreshTokenActual
     }),
     {
       headers: {
@@ -142,7 +146,7 @@ async function obtenerAccessTokenValido(usuarioId) {
     `UPDATE usuarios_spotify
      SET access_token = $1, token_expira_en = $2, refresh_token = COALESCE($3, refresh_token)
      WHERE id = $4`,
-    [access_token, nuevaExpiracion, refresh_token || null, usuarioId]
+    [encrypt(access_token), nuevaExpiracion, refresh_token ? encrypt(refresh_token) : null, usuarioId]
   );
 
   return access_token;
