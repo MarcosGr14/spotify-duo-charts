@@ -50,6 +50,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: 10px;
   padding: 22px clamp(20px, 5vw, 64px);
   border-bottom: 3px double var(--panel-border);
   background: var(--panel);
@@ -525,6 +527,17 @@ body {
 }
 
 /* ---------- RESPONSIVE ---------- */
+@media (max-width: 480px) {
+  .brand-sub { display: none; }
+
+  /* Objetivo de accesibilidad: los botones táctiles deben rondar
+     los 44px de alto como mínimo en pantallas chicas */
+  .tab, .type-tab, .user-subtabs button, .period-select select {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}
+
 @media (max-width: 560px) {
   .chart-header-row, .chart-row {
     grid-template-columns: 34px 1fr 60px 50px;
