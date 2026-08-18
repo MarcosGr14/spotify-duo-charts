@@ -14,6 +14,7 @@ CREATE TABLE usuarios_spotify (
     access_token        TEXT NOT NULL,                  -- guardarlos encriptados en la app, no en texto plano
     refresh_token       TEXT NOT NULL,
     token_expira_en     TIMESTAMPTZ NOT NULL,
+    necesita_reconexion BOOLEAN NOT NULL DEFAULT false,  -- true si el refresh token dejó de funcionar
     creado_en           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

@@ -146,6 +146,46 @@ body {
 
 .ticker-card.playing { border-color: var(--dial-red); }
 
+.ticker-card.needs-reconnect {
+  border-color: var(--dial-red);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--panel),
+    var(--panel) 10px,
+    rgba(181, 64, 47, 0.06) 10px,
+    rgba(181, 64, 47, 0.06) 20px
+  );
+}
+
+.reconnect-info {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.reconnect-msg {
+  font-family: 'Arvo', serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--dial-red);
+}
+
+.reconnect-btn {
+  font-family: 'Arvo', serif;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--cream-bright);
+  background: var(--dial-red);
+  border: 1px solid var(--dial-red-dim);
+  padding: 8px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.reconnect-btn:hover { background: var(--dial-red-dim); }
+
 .ticker-art {
   width: 46px; height: 46px;
   border-radius: 6px;

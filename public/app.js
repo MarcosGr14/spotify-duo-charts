@@ -50,6 +50,18 @@ async function actualizarTicker() {
 
     el.ticker.innerHTML = data
       .map((u) => {
+        if (u.necesita_reconexion) {
+          const slug = encodeURIComponent(u.nombre_display.toLowerCase());
+          return `
+            <div class="ticker-card needs-reconnect">
+              <img class="ticker-art" src="${u.usuario_imagen || placeholderArt()}" alt="" />
+              <div class="ticker-info reconnect-info">
+                <div class="ticker-user">${u.nombre_display}</div>
+                <div class="reconnect-msg">⚠ Cuenta desconectada</div>
+              </div>
+              <a class="reconnect-btn" href="/login/${slug}">Reconectar</a>
+            </div>`;
+        }
         if (!u.sonando) {
           return `
             <div class="ticker-card">

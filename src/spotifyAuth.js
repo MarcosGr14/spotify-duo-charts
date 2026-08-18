@@ -82,14 +82,15 @@ router.get('/callback', async (req, res) => {
 
     await db.query(
       `INSERT INTO usuarios_spotify
-         (spotify_user_id, nombre_display, imagen_url, access_token, refresh_token, token_expira_en)
-       VALUES ($1, $2, $3, $4, $5, $6)
+         (spotify_user_id, nombre_display, imagen_url, access_token, refresh_token, token_expira_en, necesita_reconexion)
+       VALUES ($1, $2, $3, $4, $5, $6, false)
        ON CONFLICT (spotify_user_id) DO UPDATE
          SET access_token = EXCLUDED.access_token,
              refresh_token = EXCLUDED.refresh_token,
              token_expira_en = EXCLUDED.token_expira_en,
              nombre_display = EXCLUDED.nombre_display,
-             imagen_url = EXCLUDED.imagen_url`,
+             imagen_url = EXCLUDED.imagen_url,
+             necesita_reconexion = false`,
       [
         perfil.id,
         perfil.display_name || persona,
@@ -125,19 +126,31 @@ async function obtenerAccessTokenValido(usuarioId) {
   const yaExpiro = new Date(usuario.token_expira_en) <= new Date();
   if (!yaExpiro) return accessTokenActual;
 
-  const resp = await axios.post(
-    'https://accounts.spotify.com/api/token',
-    new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refreshTokenActual
-    }),
-    {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: basicAuthHeader()
+  let resp;
+  try {
+    resp = await axios.post(
+      'https://accounts.spotify.com/api/token',
+      new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshTokenActual
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: basicAuthHeader()
+        }
       }
-    }
-  );
+    );
+  } catch (err) {
+    // El refresh token dejó de servir (revocado, expirado por
+    // inactividad prolongada, etc.) — marcamos la cuenta para que el
+    // dashboard le avise al usuario que hay que volver a loguearse.
+    await db.query(
+      `UPDATE usuarios_spotify SET necesita_reconexion = true WHERE id = $1`,
+      [usuarioId]
+    );
+    throw err;
+  }
 
   const { access_token, expires_in, refresh_token } = resp.data;
   const nuevaExpiracion = new Date(Date.now() + expires_in * 1000);

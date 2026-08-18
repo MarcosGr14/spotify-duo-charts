@@ -14,6 +14,7 @@ router.get('/currently-playing', async (_req, res) => {
         u.id AS usuario_id,
         u.nombre_display,
         u.imagen_url AS usuario_imagen,
+        u.necesita_reconexion,
         c.nombre AS cancion,
         al.nombre AS album,
         al.imagen_url AS portada,
@@ -25,7 +26,7 @@ router.get('/currently-playing', async (_req, res) => {
       LEFT JOIN albumes al ON al.id = c.album_id
       LEFT JOIN cancion_artistas ca ON ca.cancion_id = c.id
       LEFT JOIN artistas ar ON ar.id = ca.artista_id
-      GROUP BY u.id, u.nombre_display, u.imagen_url, c.nombre, al.nombre, al.imagen_url, ra.actualizado_en
+      GROUP BY u.id, u.nombre_display, u.imagen_url, u.necesita_reconexion, c.nombre, al.nombre, al.imagen_url, ra.actualizado_en
       ORDER BY u.id
     `);
 
@@ -222,7 +223,7 @@ router.get('/charts', async (req, res) => {
 router.get('/usuarios', async (_req, res) => {
   try {
     const { rows } = await db.query(
-      'SELECT id, nombre_display, imagen_url FROM usuarios_spotify ORDER BY id'
+      'SELECT id, nombre_display, imagen_url, necesita_reconexion FROM usuarios_spotify ORDER BY id'
     );
     res.json(rows);
   } catch (err) {
