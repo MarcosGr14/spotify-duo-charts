@@ -14,6 +14,7 @@ const el = {
   userSubtabs: document.getElementById('user-subtabs'),
   periodo: document.getElementById('periodo'),
   chartList: document.getElementById('chart-list'),
+  loadingState: document.getElementById('loading-state'),
   emptyState: document.getElementById('empty-state'),
   statusPill: document.getElementById('status-pill')
 };
@@ -93,22 +94,37 @@ async function actualizarTicker() {
 // ------------------------------------------------------------
 // Ranking / chart principal
 // ------------------------------------------------------------
+let ultimaSolicitudChart = 0;
+
 async function actualizarChart() {
   const params = new URLSearchParams({ scope: state.scope, dias: state.dias, tipo: state.tipo });
   if (state.scope === 'individual' && state.usuarioId) {
     params.set('usuario_id', state.usuarioId);
   }
 
+  const idSolicitud = ++ultimaSolicitudChart;
+  el.emptyState.hidden = true;
+  el.loadingState.hidden = false;
+  el.chartList.classList.add('loading');
+
   try {
     const resp = await fetch(`/api/charts?${params.toString()}`);
     const data = await resp.json();
 
+    // Si mientras esperábamos la respuesta el usuario ya cambió de tab
+    // de nuevo, esta respuesta quedó vieja — la ignoramos.
+    if (idSolicitud !== ultimaSolicitudChart) return;
+
+    el.loadingState.hidden = true;
+    el.chartList.classList.remove('loading');
+
     if (!data.length) {
       el.chartList.innerHTML = '';
+      el.emptyState.textContent =
+        'Todavía no hay suficientes datos en esta ventana. Dejá sonando música un rato y el ranking se va a ir armando solo.';
       el.emptyState.hidden = false;
       return;
     }
-    el.emptyState.hidden = true;
 
     const esAvatar = state.tipo === 'artistas';
 
@@ -130,6 +146,12 @@ async function actualizarChart() {
       )
       .join('');
   } catch (err) {
+    if (idSolicitud !== ultimaSolicitudChart) return;
+    el.loadingState.hidden = true;
+    el.chartList.classList.remove('loading');
+    el.chartList.innerHTML = '';
+    el.emptyState.textContent = 'No se pudo cargar el ranking. Probá recargar la página.';
+    el.emptyState.hidden = false;
     console.error('Error consultando charts:', err);
   }
 }

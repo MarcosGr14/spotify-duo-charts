@@ -395,6 +395,20 @@ body {
   list-style: none;
   margin: 0;
   padding: 0;
+  transition: opacity 0.15s ease;
+}
+
+.chart-list.loading {
+  opacity: 0.35;
+}
+
+.loading-state {
+  text-align: center;
+  color: var(--ink-dim);
+  font-family: 'VT323', monospace;
+  font-size: 1.1rem;
+  letter-spacing: 0.05em;
+  padding: 30px 20px 10px;
 }
 
 .chart-row {
