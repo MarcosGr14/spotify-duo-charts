@@ -89,9 +89,14 @@ const QUERY_CANCIONES = `
   LEFT JOIN cancion_artistas ca ON ca.cancion_id = c.id
   LEFT JOIN artistas ar ON ar.id = ca.artista_id
   LEFT JOIN rank_anterior ran ON ran.cancion_id = ra.cancion_id
+  WHERE $5::text IS NULL OR EXISTS (
+    SELECT 1 FROM cancion_artistas ca2
+    JOIN artistas ar2 ON ar2.id = ca2.artista_id
+    WHERE ca2.cancion_id = c.id AND ar2.nombre ILIKE '%' || $5 || '%'
+  )
   GROUP BY c.id, c.nombre, al.imagen_url, ra.posicion, ra.plays, ran.posicion
   ORDER BY ra.posicion
-  LIMIT 20
+  LIMIT $3 OFFSET $4
 `;
 
 const QUERY_ARTISTAS = `
@@ -131,8 +136,9 @@ const QUERY_ARTISTAS = `
   FROM rank_actual ra
   JOIN artistas a ON a.id = ra.artista_id
   LEFT JOIN rank_anterior ran ON ran.artista_id = ra.artista_id
+  WHERE $5::text IS NULL OR a.nombre ILIKE '%' || $5 || '%'
   ORDER BY ra.posicion
-  LIMIT 20
+  LIMIT $3 OFFSET $4
 `;
 
 const QUERY_ALBUMES = `
@@ -177,9 +183,15 @@ const QUERY_ALBUMES = `
   LEFT JOIN cancion_artistas ca3 ON ca3.cancion_id = c3.id
   LEFT JOIN artistas ar ON ar.id = ca3.artista_id
   LEFT JOIN rank_anterior ran ON ran.album_id = ra.album_id
+  WHERE $5::text IS NULL OR EXISTS (
+    SELECT 1 FROM canciones c4
+    JOIN cancion_artistas ca4 ON ca4.cancion_id = c4.id
+    JOIN artistas ar4 ON ar4.id = ca4.artista_id
+    WHERE c4.album_id = al.id AND ar4.nombre ILIKE '%' || $5 || '%'
+  )
   GROUP BY al.id, al.nombre, al.imagen_url, ra.posicion, ra.plays, ran.posicion
   ORDER BY ra.posicion
-  LIMIT 20
+  LIMIT $3 OFFSET $4
 `;
 
 const QUERIES_POR_TIPO = {
@@ -189,9 +201,10 @@ const QUERIES_POR_TIPO = {
 };
 
 // ------------------------------------------------------------
-// GET /api/charts?scope=global|individual&usuario_id=1&dias=7&tipo=canciones|artistas|albumes
+// GET /api/charts?scope=global|individual&usuario_id=1&dias=7&tipo=canciones|artistas|albumes&offset=0
 // Devuelve el ranking con posición actual y variación vs el
-// período anterior (para las flechas de sube/baja)
+// período anterior (para las flechas de sube/baja). Pagina de a 20
+// con offset, para poder pedir "más" sin traer todo de una.
 // ------------------------------------------------------------
 router.get('/charts', async (req, res) => {
   const dias = parseInt(req.query.dias, 10) || 7;
@@ -201,9 +214,12 @@ router.get('/charts', async (req, res) => {
       ? parseInt(req.query.usuario_id, 10)
       : null;
   const tipo = QUERIES_POR_TIPO[req.query.tipo] ? req.query.tipo : 'canciones';
+  const limit = 20;
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  const busqueda = req.query.busqueda && req.query.busqueda.trim() ? req.query.busqueda.trim() : null;
 
   try {
-    const { rows } = await db.query(QUERIES_POR_TIPO[tipo], [dias, usuarioId]);
+    const { rows } = await db.query(QUERIES_POR_TIPO[tipo], [dias, usuarioId, limit, offset, busqueda]);
 
     const resultado = rows.map((r) => ({
       ...r,

@@ -66,6 +66,17 @@
       <button class="type-tab" data-tipo="albumes">Álbumes</button>
     </div>
 
+    <div class="search-row">
+      <input
+        type="search"
+        id="search-input"
+        class="search-input"
+        placeholder="Buscar por artista…"
+        autocomplete="off"
+      />
+      <button class="search-clear" id="search-clear" hidden aria-label="Limpiar búsqueda">✕</button>
+    </div>
+
     <div class="user-subtabs" id="user-subtabs" hidden></div>
 
     <div class="chart-header-row">
@@ -78,6 +89,8 @@
     <ol class="chart-list" id="chart-list">
       <!-- Filas generadas por JS -->
     </ol>
+
+    <button class="load-more-btn" id="load-more-btn" hidden>Ver más</button>
 
     <p class="loading-state" id="loading-state" hidden>Sintonizando…</p>
 

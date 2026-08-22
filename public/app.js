@@ -3,8 +3,12 @@ const state = {
   usuarioId: null,
   dias: 7,
   tipo: 'canciones',
-  usuarios: []
+  usuarios: [],
+  offset: 0,
+  busqueda: ''
 };
+
+const LIMITE_POR_PAGINA = 20;
 
 const el = {
   ticker: document.getElementById('ticker-row'),
@@ -14,6 +18,9 @@ const el = {
   userSubtabs: document.getElementById('user-subtabs'),
   periodo: document.getElementById('periodo'),
   chartList: document.getElementById('chart-list'),
+  loadMoreBtn: document.getElementById('load-more-btn'),
+  searchInput: document.getElementById('search-input'),
+  searchClear: document.getElementById('search-clear'),
   loadingState: document.getElementById('loading-state'),
   emptyState: document.getElementById('empty-state'),
   statusPill: document.getElementById('status-pill')
@@ -102,19 +109,57 @@ let ultimaSolicitudChart = 0;
 // falta tocar el backend para esto.
 const DIAS_TODO_EL_TIEMPO = 36500; // ~100 años
 
-async function actualizarChart() {
+function renderFila(item, esAvatar, modoSinComparacion) {
+  return `
+    <li class="chart-row${item.posicion <= 3 ? ' top3' : ''}">
+      <span class="col-pos">${item.posicion}</span>
+      <div class="track-cell">
+        <img class="track-art${esAvatar ? ' avatar' : ''}" src="${item.portada || placeholderArt()}" alt="" />
+        <div class="track-meta">
+          <div class="track-name">${item.nombre}</div>
+          ${item.subtitulo ? `<div class="track-artist">${item.subtitulo}</div>` : ''}
+        </div>
+      </div>
+      <span class="col-plays">${item.veces_escuchada}×</span>
+      <span class="col-change">${modoSinComparacion ? '<span class="change-same">—</span>' : renderCambio(item.cambio)}</span>
+    </li>`;
+}
+
+function construirParams(offset) {
   const modoSinComparacion = state.dias === 'all';
   const diasParaApi = modoSinComparacion ? DIAS_TODO_EL_TIEMPO : state.dias;
-
-  const params = new URLSearchParams({ scope: state.scope, dias: diasParaApi, tipo: state.tipo });
+  const params = new URLSearchParams({
+    scope: state.scope,
+    dias: diasParaApi,
+    tipo: state.tipo,
+    offset
+  });
   if (state.scope === 'individual' && state.usuarioId) {
     params.set('usuario_id', state.usuarioId);
   }
+  if (state.busqueda) {
+    params.set('busqueda', state.busqueda);
+  }
+  return params;
+}
+
+// reset=true: es una carga nueva (cambió el tab/periodo/cuenta), reemplaza
+// todo desde cero. reset=false: es "Ver más", agrega filas al final.
+async function actualizarChart(reset = true) {
+  if (reset) state.offset = 0;
 
   const idSolicitud = ++ultimaSolicitudChart;
-  el.emptyState.hidden = true;
-  el.loadingState.hidden = false;
-  el.chartList.classList.add('loading');
+  const params = construirParams(state.offset);
+
+  if (reset) {
+    el.emptyState.hidden = true;
+    el.loadingState.hidden = false;
+    el.chartList.classList.add('loading');
+    el.loadMoreBtn.hidden = true;
+  } else {
+    el.loadMoreBtn.textContent = 'Cargando…';
+    el.loadMoreBtn.disabled = true;
+  }
 
   try {
     const resp = await fetch(`/api/charts?${params.toString()}`);
@@ -126,8 +171,10 @@ async function actualizarChart() {
 
     el.loadingState.hidden = true;
     el.chartList.classList.remove('loading');
+    el.loadMoreBtn.textContent = 'Ver más';
+    el.loadMoreBtn.disabled = false;
 
-    if (!data.length) {
+    if (reset && !data.length) {
       el.chartList.innerHTML = '';
       el.emptyState.textContent =
         'Todavía no hay suficientes datos en esta ventana. Dejá sonando música un rato y el ranking se va a ir armando solo.';
@@ -136,34 +183,34 @@ async function actualizarChart() {
     }
 
     const esAvatar = state.tipo === 'artistas';
+    const modoSinComparacion = state.dias === 'all';
+    const filasHtml = data.map((item) => renderFila(item, esAvatar, modoSinComparacion)).join('');
 
-    el.chartList.innerHTML = data
-      .map(
-        (item) => `
-        <li class="chart-row${item.posicion <= 3 ? ' top3' : ''}">
-          <span class="col-pos">${item.posicion}</span>
-          <div class="track-cell">
-            <img class="track-art${esAvatar ? ' avatar' : ''}" src="${item.portada || placeholderArt()}" alt="" />
-            <div class="track-meta">
-              <div class="track-name">${item.nombre}</div>
-              ${item.subtitulo ? `<div class="track-artist">${item.subtitulo}</div>` : ''}
-            </div>
-          </div>
-          <span class="col-plays">${item.veces_escuchada}×</span>
-          <span class="col-change">${modoSinComparacion ? '<span class="change-same">—</span>' : renderCambio(item.cambio)}</span>
-        </li>`
-      )
-      .join('');
+    if (reset) {
+      el.chartList.innerHTML = filasHtml;
+    } else {
+      el.chartList.insertAdjacentHTML('beforeend', filasHtml);
+    }
+
+    state.offset += data.length;
+    // Si vino una página completa, probablemente haya más para pedir
+    el.loadMoreBtn.hidden = data.length < LIMITE_POR_PAGINA;
   } catch (err) {
     if (idSolicitud !== ultimaSolicitudChart) return;
     el.loadingState.hidden = true;
     el.chartList.classList.remove('loading');
-    el.chartList.innerHTML = '';
-    el.emptyState.textContent = 'No se pudo cargar el ranking. Probá recargar la página.';
-    el.emptyState.hidden = false;
+    el.loadMoreBtn.textContent = 'Ver más';
+    el.loadMoreBtn.disabled = false;
+    if (reset) {
+      el.chartList.innerHTML = '';
+      el.emptyState.textContent = 'No se pudo cargar el ranking. Probá recargar la página.';
+      el.emptyState.hidden = false;
+    }
     console.error('Error consultando charts:', err);
   }
 }
+
+el.loadMoreBtn.addEventListener('click', () => actualizarChart(false));
 
 // ------------------------------------------------------------
 // Cargar usuarios para el sub-tab "individual"
@@ -237,6 +284,23 @@ el.typeTabs.querySelectorAll('.type-tab').forEach((tab) => {
 
 el.periodo.addEventListener('change', () => {
   state.dias = el.periodo.value === 'all' ? 'all' : parseInt(el.periodo.value, 10);
+  actualizarChart();
+});
+
+let debounceBusqueda = null;
+el.searchInput.addEventListener('input', () => {
+  el.searchClear.hidden = el.searchInput.value.length === 0;
+  clearTimeout(debounceBusqueda);
+  debounceBusqueda = setTimeout(() => {
+    state.busqueda = el.searchInput.value.trim();
+    actualizarChart();
+  }, 350);
+});
+
+el.searchClear.addEventListener('click', () => {
+  el.searchInput.value = '';
+  el.searchClear.hidden = true;
+  state.busqueda = '';
   actualizarChart();
 });
 
