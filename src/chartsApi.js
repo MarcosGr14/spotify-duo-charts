@@ -248,4 +248,77 @@ router.get('/usuarios', async (_req, res) => {
   }
 });
 
+// ------------------------------------------------------------
+// GET /api/historial-item?tipo=canciones|artistas|albumes&id=123&scope=global|individual&usuario_id=1
+// Devuelve las reproducciones día por día de los últimos 14 días
+// para UN ítem puntual (para el gráfico de evolución al hacer click
+// en una fila del ranking). Los días sin reproducciones vienen en 0,
+// no se saltean — así el gráfico no queda con huecos raros.
+// ------------------------------------------------------------
+const QUERY_HISTORIAL_CANCION = `
+  SELECT gs::date AS fecha, COALESCE(cnt.plays, 0) AS plays
+  FROM generate_series(now()::date - interval '13 days', now()::date, interval '1 day') gs
+  LEFT JOIN (
+    SELECT date_trunc('day', reproducido_en) AS dia, COUNT(*) AS plays
+    FROM reproducciones
+    WHERE cancion_id = $1 AND ($2::int IS NULL OR usuario_id = $2::int)
+    GROUP BY dia
+  ) cnt ON cnt.dia = gs
+  ORDER BY gs
+`;
+
+const QUERY_HISTORIAL_ARTISTA = `
+  SELECT gs::date AS fecha, COALESCE(cnt.plays, 0) AS plays
+  FROM generate_series(now()::date - interval '13 days', now()::date, interval '1 day') gs
+  LEFT JOIN (
+    SELECT date_trunc('day', r.reproducido_en) AS dia, COUNT(*) AS plays
+    FROM reproducciones r
+    JOIN cancion_artistas ca ON ca.cancion_id = r.cancion_id
+    WHERE ca.artista_id = $1 AND ($2::int IS NULL OR r.usuario_id = $2::int)
+    GROUP BY dia
+  ) cnt ON cnt.dia = gs
+  ORDER BY gs
+`;
+
+const QUERY_HISTORIAL_ALBUM = `
+  SELECT gs::date AS fecha, COALESCE(cnt.plays, 0) AS plays
+  FROM generate_series(now()::date - interval '13 days', now()::date, interval '1 day') gs
+  LEFT JOIN (
+    SELECT date_trunc('day', r.reproducido_en) AS dia, COUNT(*) AS plays
+    FROM reproducciones r
+    JOIN canciones c ON c.id = r.cancion_id
+    WHERE c.album_id = $1 AND ($2::int IS NULL OR r.usuario_id = $2::int)
+    GROUP BY dia
+  ) cnt ON cnt.dia = gs
+  ORDER BY gs
+`;
+
+const QUERIES_HISTORIAL = {
+  canciones: QUERY_HISTORIAL_CANCION,
+  artistas: QUERY_HISTORIAL_ARTISTA,
+  albumes: QUERY_HISTORIAL_ALBUM
+};
+
+router.get('/historial-item', async (req, res) => {
+  const tipo = QUERIES_HISTORIAL[req.query.tipo] ? req.query.tipo : 'canciones';
+  const id = parseInt(req.query.id, 10);
+  const scope = req.query.scope === 'individual' ? 'individual' : 'global';
+  const usuarioId =
+    scope === 'individual' && req.query.usuario_id
+      ? parseInt(req.query.usuario_id, 10)
+      : null;
+
+  if (!id) {
+    return res.status(400).json({ error: 'Falta el id del ítem.' });
+  }
+
+  try {
+    const { rows } = await db.query(QUERIES_HISTORIAL[tipo], [id, usuarioId]);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error en /api/historial-item:', err.message);
+    res.status(500).json({ error: 'No se pudo calcular el historial.' });
+  }
+});
+
 module.exports = router;

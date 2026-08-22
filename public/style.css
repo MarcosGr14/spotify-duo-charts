@@ -539,6 +539,53 @@ body {
   text-overflow: ellipsis;
 }
 
+.evolucion-hint {
+  font-family: 'Arvo', serif;
+  font-size: 0.66rem;
+  color: var(--ink-faint);
+  margin-top: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.chart-row { cursor: pointer; }
+.chart-row:hover .evolucion-hint,
+.chart-row.expanded .evolucion-hint {
+  opacity: 1;
+}
+.chart-row.expanded { background: rgba(181, 64, 47, 0.05); }
+
+.chart-detail {
+  padding: 14px 14px 18px 62px;
+  border-bottom: 1px dashed var(--panel-border);
+  background: rgba(181, 64, 47, 0.03);
+}
+
+.mini-chart-loading {
+  font-family: 'VT323', monospace;
+  font-size: 1rem;
+  color: var(--ink-dim);
+  padding: 10px 0;
+}
+
+.mini-chart-wrap { max-width: 400px; }
+
+.mini-chart-label {
+  display: block;
+  font-family: 'Arvo', serif;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 6px;
+}
+
+.mini-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 .col-plays {
   font-family: 'VT323', monospace;
   font-size: 1.15rem;

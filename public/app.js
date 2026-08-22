@@ -111,13 +111,14 @@ const DIAS_TODO_EL_TIEMPO = 36500; // ~100 años
 
 function renderFila(item, esAvatar, modoSinComparacion) {
   return `
-    <li class="chart-row${item.posicion <= 3 ? ' top3' : ''}">
+    <li class="chart-row${item.posicion <= 3 ? ' top3' : ''}" data-id="${item.id}">
       <span class="col-pos">${item.posicion}</span>
       <div class="track-cell">
         <img class="track-art${esAvatar ? ' avatar' : ''}" src="${item.portada || placeholderArt()}" alt="" />
         <div class="track-meta">
           <div class="track-name">${item.nombre}</div>
           ${item.subtitulo ? `<div class="track-artist">${item.subtitulo}</div>` : ''}
+          <div class="evolucion-hint">Ver evolución ▾</div>
         </div>
       </div>
       <span class="col-plays">${item.veces_escuchada}×</span>
@@ -211,6 +212,78 @@ async function actualizarChart(reset = true) {
 }
 
 el.loadMoreBtn.addEventListener('click', () => actualizarChart(false));
+
+// ------------------------------------------------------------
+// Gráfico de evolución: al hacer click en una fila, se despliega
+// un mini-gráfico de barras con las reproducciones día por día de
+// los últimos 14 días, justo debajo de esa fila.
+// ------------------------------------------------------------
+function construirMiniGrafico(dias) {
+  const max = Math.max(...dias.map((d) => Number(d.plays)), 1);
+  const ancho = 320;
+  const alto = 90;
+  const anchoBarra = ancho / dias.length;
+  const diasSemana = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+
+  const barras = dias
+    .map((d, i) => {
+      const valor = Number(d.plays);
+      const alturaBarra = valor === 0 ? 2 : Math.max((valor / max) * (alto - 20), 6);
+      const x = i * anchoBarra + anchoBarra * 0.2;
+      const y = alto - alturaBarra - 14;
+      const anchoReal = anchoBarra * 0.6;
+      const fecha = new Date(d.fecha);
+      const esHoy = i === dias.length - 1;
+      return `
+        <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${anchoReal.toFixed(1)}" height="${alturaBarra.toFixed(1)}"
+              rx="2" fill="${esHoy ? 'var(--dial-red)' : 'var(--tune-green)'}" opacity="${valor === 0 ? 0.25 : 0.85}">
+          <title>${fecha.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}: ${valor} reproducciones</title>
+        </rect>
+        <text x="${(x + anchoReal / 2).toFixed(1)}" y="${alto - 2}" font-size="9" fill="var(--ink-faint)" text-anchor="middle">${diasSemana[fecha.getDay()]}</text>
+      `;
+    })
+    .join('');
+
+  return `<svg viewBox="0 0 ${ancho} ${alto}" class="mini-chart-svg">${barras}</svg>`;
+}
+
+el.chartList.addEventListener('click', async (e) => {
+  const fila = e.target.closest('.chart-row');
+  if (!fila) return;
+
+  const idItem = fila.dataset.id;
+  const detalleExistente = fila.nextElementSibling;
+  const yaAbierto = detalleExistente && detalleExistente.classList.contains('chart-detail');
+
+  // Cerrar cualquier otro gráfico que haya quedado abierto
+  el.chartList.querySelectorAll('.chart-detail').forEach((n) => n.remove());
+  el.chartList.querySelectorAll('.chart-row.expanded').forEach((n) => n.classList.remove('expanded'));
+
+  if (yaAbierto) return; // el click fue para cerrar el que ya estaba abierto
+
+  fila.classList.add('expanded');
+  const detalle = document.createElement('li');
+  detalle.className = 'chart-detail';
+  detalle.innerHTML = '<div class="mini-chart-loading">Sintonizando historial…</div>';
+  fila.after(detalle);
+
+  try {
+    const params = new URLSearchParams({ tipo: state.tipo, id: idItem, scope: state.scope });
+    if (state.scope === 'individual' && state.usuarioId) {
+      params.set('usuario_id', state.usuarioId);
+    }
+    const resp = await fetch(`/api/historial-item?${params.toString()}`);
+    const dias = await resp.json();
+    detalle.innerHTML = `
+      <div class="mini-chart-wrap">
+        <span class="mini-chart-label">Últimos 14 días</span>
+        ${construirMiniGrafico(dias)}
+      </div>`;
+  } catch (err) {
+    detalle.innerHTML = '<div class="mini-chart-loading">No se pudo cargar el historial.</div>';
+    console.error('Error consultando historial-item:', err);
+  }
+});
 
 // ------------------------------------------------------------
 // Cargar usuarios para el sub-tab "individual"
