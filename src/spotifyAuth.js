@@ -1,7 +1,9 @@
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
+const Sentry = require('@sentry/node');
 const db = require('./db');
+const { describirError } = require('./errorUtils');
 const { encrypt, decryptSafe } = require('./crypto');
 const {
   SPOTIFY_CLIENT_ID,
@@ -106,7 +108,8 @@ router.get('/callback', async (req, res) => {
        <p>Ya podés cerrar esta pestaña.</p>`
     );
   } catch (err) {
-    console.error('Error en /callback:', err.response?.data || err.message);
+    console.error('Error en /callback:', err.response?.data || describirError(err));
+    Sentry.captureException(err, { tags: { ruta: '/callback' } });
     res.status(500).send('Algo falló conectando la cuenta. Revisa la consola del servidor.');
   }
 });

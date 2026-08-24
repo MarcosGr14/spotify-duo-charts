@@ -1,7 +1,9 @@
 const axios = require('axios');
+const Sentry = require('@sentry/node');
 const db = require('./db');
 const { obtenerAccessTokenValido } = require('./spotifyAuth');
 const { upsertCancion } = require('./catalog');
+const { describirError } = require('./errorUtils');
 
 // ------------------------------------------------------------
 // Actualiza "qué está sonando ahora mismo" (para el widget en vivo)
@@ -36,8 +38,9 @@ async function pollCurrentlyPlaying(usuario) {
   } catch (err) {
     console.error(
       `[currently-playing] Error con usuario ${usuario.nombre_display}:`,
-      err.response?.data || err.message
+      err.response?.data || describirError(err)
     );
+    Sentry.captureException(err, { tags: { ciclo: 'currently-playing', usuario: usuario.nombre_display } });
   }
 }
 
@@ -67,8 +70,9 @@ async function pollRecentlyPlayed(usuario) {
   } catch (err) {
     console.error(
       `[recently-played] Error con usuario ${usuario.nombre_display}:`,
-      err.response?.data || err.message
+      err.response?.data || describirError(err)
     );
+    Sentry.captureException(err, { tags: { ciclo: 'recently-played', usuario: usuario.nombre_display } });
   }
 }
 
@@ -114,8 +118,9 @@ async function completarImagenesDeArtistas(usuario) {
   } catch (err) {
     console.error(
       '[completar imágenes de artistas] Error:',
-      err.response?.data || err.message
+      err.response?.data || describirError(err)
     );
+    Sentry.captureException(err, { tags: { ciclo: 'completar-imagenes-artistas' } });
   }
 }
 

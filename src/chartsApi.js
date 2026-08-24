@@ -1,5 +1,7 @@
 const express = require('express');
+const Sentry = require('@sentry/node');
 const db = require('./db');
+const { describirError } = require('./errorUtils');
 
 const router = express.Router();
 
@@ -41,7 +43,8 @@ router.get('/currently-playing', async (_req, res) => {
 
     res.json(resultado);
   } catch (err) {
-    console.error('Error en /api/currently-playing:', err.message);
+    console.error('Error en /api/currently-playing:', describirError(err));
+    Sentry.captureException(err, { tags: { ruta: '/api/currently-playing' } });
     res.status(500).json({ error: 'No se pudo consultar el estado actual.' });
   }
 });
@@ -228,7 +231,8 @@ router.get('/charts', async (req, res) => {
 
     res.json(resultado);
   } catch (err) {
-    console.error('Error en /api/charts:', err.message);
+    console.error('Error en /api/charts:', describirError(err));
+    Sentry.captureException(err, { tags: { ruta: '/api/charts' } });
     res.status(500).json({ error: 'No se pudo calcular el ranking.' });
   }
 });
@@ -243,7 +247,8 @@ router.get('/usuarios', async (_req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error('Error en /api/usuarios:', err.message);
+    console.error('Error en /api/usuarios:', describirError(err));
+    Sentry.captureException(err, { tags: { ruta: '/api/usuarios' } });
     res.status(500).json({ error: 'No se pudo consultar los usuarios.' });
   }
 });
@@ -316,7 +321,8 @@ router.get('/historial-item', async (req, res) => {
     const { rows } = await db.query(QUERIES_HISTORIAL[tipo], [id, usuarioId]);
     res.json(rows);
   } catch (err) {
-    console.error('Error en /api/historial-item:', err.message);
+    console.error('Error en /api/historial-item:', describirError(err));
+    Sentry.captureException(err, { tags: { ruta: '/api/historial-item' } });
     res.status(500).json({ error: 'No se pudo calcular el historial.' });
   }
 });
