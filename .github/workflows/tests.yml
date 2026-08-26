@@ -1,0 +1,43 @@
+name: Tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # GitHub arma un Postgres real y descartable solo para este run,
+    # no toca ni se parece en nada a la base de datos real de Supabase.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test1234
+          POSTGRES_DB: test_charts
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm install
+
+      - name: Correr tests
+        run: npm test
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:test1234@localhost:5432/test_charts

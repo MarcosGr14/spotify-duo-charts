@@ -56,14 +56,14 @@ router.get('/currently-playing', async (_req, res) => {
 // ------------------------------------------------------------
 const QUERY_CANCIONES = `
   WITH periodo_actual AS (
-    SELECT r.cancion_id, COUNT(*) AS plays
+    SELECT r.cancion_id, COUNT(*)::int AS plays
     FROM reproducciones r
     WHERE r.reproducido_en >= now() - make_interval(days => $1)
       AND ($2::int IS NULL OR r.usuario_id = $2::int)
     GROUP BY r.cancion_id
   ),
   periodo_anterior AS (
-    SELECT r.cancion_id, COUNT(*) AS plays
+    SELECT r.cancion_id, COUNT(*)::int AS plays
     FROM reproducciones r
     WHERE r.reproducido_en >= now() - make_interval(days => $1 * 2)
       AND r.reproducido_en < now() - make_interval(days => $1)
@@ -71,11 +71,11 @@ const QUERY_CANCIONES = `
     GROUP BY r.cancion_id
   ),
   rank_actual AS (
-    SELECT cancion_id, plays, RANK() OVER (ORDER BY plays DESC) AS posicion
+    SELECT cancion_id, plays, RANK() OVER (ORDER BY plays DESC)::int AS posicion
     FROM periodo_actual
   ),
   rank_anterior AS (
-    SELECT cancion_id, RANK() OVER (ORDER BY plays DESC) AS posicion
+    SELECT cancion_id, RANK() OVER (ORDER BY plays DESC)::int AS posicion
     FROM periodo_anterior
   )
   SELECT
@@ -104,7 +104,7 @@ const QUERY_CANCIONES = `
 
 const QUERY_ARTISTAS = `
   WITH periodo_actual AS (
-    SELECT ca.artista_id, COUNT(*) AS plays
+    SELECT ca.artista_id, COUNT(*)::int AS plays
     FROM reproducciones r
     JOIN cancion_artistas ca ON ca.cancion_id = r.cancion_id
     WHERE r.reproducido_en >= now() - make_interval(days => $1)
@@ -112,7 +112,7 @@ const QUERY_ARTISTAS = `
     GROUP BY ca.artista_id
   ),
   periodo_anterior AS (
-    SELECT ca.artista_id, COUNT(*) AS plays
+    SELECT ca.artista_id, COUNT(*)::int AS plays
     FROM reproducciones r
     JOIN cancion_artistas ca ON ca.cancion_id = r.cancion_id
     WHERE r.reproducido_en >= now() - make_interval(days => $1 * 2)
@@ -121,11 +121,11 @@ const QUERY_ARTISTAS = `
     GROUP BY ca.artista_id
   ),
   rank_actual AS (
-    SELECT artista_id, plays, RANK() OVER (ORDER BY plays DESC) AS posicion
+    SELECT artista_id, plays, RANK() OVER (ORDER BY plays DESC)::int AS posicion
     FROM periodo_actual
   ),
   rank_anterior AS (
-    SELECT artista_id, RANK() OVER (ORDER BY plays DESC) AS posicion
+    SELECT artista_id, RANK() OVER (ORDER BY plays DESC)::int AS posicion
     FROM periodo_anterior
   )
   SELECT
@@ -146,7 +146,7 @@ const QUERY_ARTISTAS = `
 
 const QUERY_ALBUMES = `
   WITH periodo_actual AS (
-    SELECT c.album_id, COUNT(*) AS plays
+    SELECT c.album_id, COUNT(*)::int AS plays
     FROM reproducciones r
     JOIN canciones c ON c.id = r.cancion_id
     WHERE c.album_id IS NOT NULL
@@ -155,7 +155,7 @@ const QUERY_ALBUMES = `
     GROUP BY c.album_id
   ),
   periodo_anterior AS (
-    SELECT c.album_id, COUNT(*) AS plays
+    SELECT c.album_id, COUNT(*)::int AS plays
     FROM reproducciones r
     JOIN canciones c ON c.id = r.cancion_id
     WHERE c.album_id IS NOT NULL
@@ -165,11 +165,11 @@ const QUERY_ALBUMES = `
     GROUP BY c.album_id
   ),
   rank_actual AS (
-    SELECT album_id, plays, RANK() OVER (ORDER BY plays DESC) AS posicion
+    SELECT album_id, plays, RANK() OVER (ORDER BY plays DESC)::int AS posicion
     FROM periodo_actual
   ),
   rank_anterior AS (
-    SELECT album_id, RANK() OVER (ORDER BY plays DESC) AS posicion
+    SELECT album_id, RANK() OVER (ORDER BY plays DESC)::int AS posicion
     FROM periodo_anterior
   )
   SELECT
@@ -326,5 +326,11 @@ router.get('/historial-item', async (req, res) => {
     res.status(500).json({ error: 'No se pudo calcular el historial.' });
   }
 });
+
+// Se cuelgan como propiedades del router (que es una función, así que
+// puede tener propiedades) para que los tests puedan importar las
+// queries reales sin duplicar código ni necesitar trucos raros.
+router.QUERIES_POR_TIPO = QUERIES_POR_TIPO;
+router.QUERIES_HISTORIAL = QUERIES_HISTORIAL;
 
 module.exports = router;
