@@ -20,6 +20,8 @@ router.get('/currently-playing', async (_req, res) => {
         c.nombre AS cancion,
         al.nombre AS album,
         al.imagen_url AS portada,
+        c.duracion_ms,
+        ra.empezo_en,
         ra.actualizado_en,
         string_agg(DISTINCT ar.nombre, ', ') AS artistas
       FROM usuarios_spotify u
@@ -28,7 +30,7 @@ router.get('/currently-playing', async (_req, res) => {
       LEFT JOIN albumes al ON al.id = c.album_id
       LEFT JOIN cancion_artistas ca ON ca.cancion_id = c.id
       LEFT JOIN artistas ar ON ar.id = ca.artista_id
-      GROUP BY u.id, u.nombre_display, u.imagen_url, u.necesita_reconexion, c.nombre, al.nombre, al.imagen_url, ra.actualizado_en
+      GROUP BY u.id, u.nombre_display, u.imagen_url, u.necesita_reconexion, c.nombre, al.nombre, al.imagen_url, c.duracion_ms, ra.empezo_en, ra.actualizado_en
       ORDER BY u.id
     `);
 

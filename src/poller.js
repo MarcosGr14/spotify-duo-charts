@@ -32,6 +32,11 @@ async function pollCurrentlyPlaying(usuario) {
        VALUES ($1, $2, now(), now())
        ON CONFLICT (usuario_id) DO UPDATE
          SET cancion_id = EXCLUDED.cancion_id,
+             empezo_en = CASE
+               WHEN reproduccion_actual.cancion_id IS DISTINCT FROM EXCLUDED.cancion_id
+               THEN now()
+               ELSE reproduccion_actual.empezo_en
+             END,
              actualizado_en = now()`,
       [usuario.id, cancionId]
     );
