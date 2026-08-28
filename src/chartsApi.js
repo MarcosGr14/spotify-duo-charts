@@ -2,6 +2,7 @@ const express = require('express');
 const Sentry = require('@sentry/node');
 const db = require('./db');
 const { describirError } = require('./errorUtils');
+const { calcularMusicMatch } = require('./musicMatch');
 
 const router = express.Router();
 
@@ -326,6 +327,26 @@ router.get('/historial-item', async (req, res) => {
     console.error('Error en /api/historial-item:', describirError(err));
     Sentry.captureException(err, { tags: { ruta: '/api/historial-item' } });
     res.status(500).json({ error: 'No se pudo calcular el historial.' });
+  }
+});
+
+// ------------------------------------------------------------
+// GET /api/music-match?dias=7
+// Devuelve el porcentaje de compatibilidad musical entre las dos
+// cuentas conectadas (similitud de Jaccard sobre artistas escuchados
+// en el período), más el artista compartido principal y el balance
+// de reproducciones entre ambos. Ver src/musicMatch.js.
+// ------------------------------------------------------------
+router.get('/music-match', async (req, res) => {
+  const dias = parseInt(req.query.dias, 10) || 7;
+
+  try {
+    const resultado = await calcularMusicMatch(dias);
+    res.json(resultado);
+  } catch (err) {
+    console.error('Error en /api/music-match:', describirError(err));
+    Sentry.captureException(err, { tags: { ruta: '/api/music-match' } });
+    res.status(500).json({ error: 'No se pudo calcular el Music Match.' });
   }
 });
 
