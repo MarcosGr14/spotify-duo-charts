@@ -22,8 +22,14 @@ const describeSiHayDB = TEST_DATABASE_URL ? describe : describe.skip;
 describeSiHayDB('cálculo de rankings (requiere TEST_DATABASE_URL)', () => {
   let pool;
 
-  beforeAll(async () => {
+    beforeAll(async () => {
     pool = new Pool({ connectionString: TEST_DATABASE_URL });
+    // Resetea el schema antes de crearlo: con --runInBand las suites ya
+    // no corren en paralelo, pero siguen compartiendo la misma base
+    // dentro del mismo job de CI. Sin este reset, la segunda suite en
+    // ejecutarse choca contra las tablas que dejó la primera (esta
+    // suite nunca las borra en afterAll, solo cierra el pool).
+    await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
     const schema = fs.readFileSync(path.join(__dirname, '../db/schema.sql'), 'utf8');
     await pool.query(schema);
   });
