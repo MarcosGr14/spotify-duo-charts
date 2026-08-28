@@ -13,6 +13,11 @@ describeSiHayDB('Music Match (requiere TEST_DATABASE_URL)', () => {
 
   beforeAll(async () => {
     pool = new Pool({ connectionString: TEST_DATABASE_URL });
+    // Mismo reset que en rankings.test.js: con --runInBand las suites
+    // ya no compiten en paralelo, pero siguen compartiendo la base
+    // dentro del mismo job — sin esto, la segunda suite en correr
+    // choca contra las tablas que dejó la primera.
+    await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
     const schema = fs.readFileSync(path.join(__dirname, '../db/schema.sql'), 'utf8');
     await pool.query(schema);
   });
@@ -93,7 +98,7 @@ describeSiHayDB('Music Match (requiere TEST_DATABASE_URL)', () => {
     await reproducir(jackieId, cAespa, 4);
     await reproducir(jackieId, cNmixx, 4);
 
-    const resultado = await calcularMusicMatch(7);
+    const resultado = await calcularMusicMatch(7, pool);
 
     expect(resultado.disponible).toBe(true);
     expect(resultado.artistas_union).toBe(4);
@@ -121,7 +126,7 @@ describeSiHayDB('Music Match (requiere TEST_DATABASE_URL)', () => {
     await reproducir(marcosId, cA, 5);
     await reproducir(jackieId, cB, 5);
 
-    const resultado = await calcularMusicMatch(7);
+    const resultado = await calcularMusicMatch(7, pool);
     expect(resultado.porcentaje).toBe(0);
     expect(resultado.artistas_compartidos).toBe(0);
     expect(resultado.artista_principal).toBeNull();
@@ -131,7 +136,7 @@ describeSiHayDB('Music Match (requiere TEST_DATABASE_URL)', () => {
     await crearUsuario('marcos-id', 'Marcos');
     await crearUsuario('jackie-id', 'Jackie');
 
-    const resultado = await calcularMusicMatch(7);
+    const resultado = await calcularMusicMatch(7, pool);
     expect(resultado.artistas_union).toBe(0);
     expect(resultado.porcentaje).toBe(0);
     expect(resultado.balance[0].porcentaje).toBe(0);
@@ -140,7 +145,7 @@ describeSiHayDB('Music Match (requiere TEST_DATABASE_URL)', () => {
 
   test('con una sola cuenta conectada, devuelve disponible:false en vez de romper', async () => {
     await crearUsuario('marcos-id', 'Marcos');
-    const resultado = await calcularMusicMatch(7);
+    const resultado = await calcularMusicMatch(7, pool);
     expect(resultado.disponible).toBe(false);
   });
 
@@ -161,7 +166,7 @@ describeSiHayDB('Music Match (requiere TEST_DATABASE_URL)', () => {
       [jackieId, cA]
     );
 
-    const resultado = await calcularMusicMatch(7);
+    const resultado = await calcularMusicMatch(7, pool);
     expect(resultado.artistas_union).toBe(0);
   });
 });

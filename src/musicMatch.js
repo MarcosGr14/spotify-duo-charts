@@ -4,8 +4,12 @@ const db = require('./db');
 // a CADA artista. Una sola query para los dos usuarios a la vez —
 // después separamos por usuario_id en JS, que es más simple de leer
 // y de testear que armar todo en un CTE gigante de SQL.
-async function reproduccionesPorArtista(dias) {
-  const { rows } = await db.query(
+//
+// Recibe la conexión por parámetro (dependency injection) en vez de
+// usar siempre el pool de producción de db.js. Así los tests pueden
+// pasarle un Pool apuntando a TEST_DATABASE_URL sin tocar producción.
+async function reproduccionesPorArtista(dias, database) {
+  const { rows } = await database.query(
     `SELECT r.usuario_id, ca.artista_id, ar.nombre, ar.imagen_url, COUNT(*)::int AS plays
      FROM reproducciones r
      JOIN cancion_artistas ca ON ca.cancion_id = r.cancion_id
@@ -23,8 +27,13 @@ async function reproduccionesPorArtista(dias) {
 //
 //   artistas compartidos / artistas distintos entre los dos × 100
 //
-async function calcularMusicMatch(dias) {
-  const { rows: usuarios } = await db.query(
+// `database` es inyectable: en producción se usa el pool real de
+// db.js (default), y en los tests se le pasa un Pool apuntando a
+// TEST_DATABASE_URL. La ruta /api/music-match NO pasa este segundo
+// parámetro, así que en producción el comportamiento es idéntico al
+// de antes — sigue usando db.js / DATABASE_URL sin cambios.
+async function calcularMusicMatch(dias, database = db) {
+  const { rows: usuarios } = await database.query(
     'SELECT id, nombre_display FROM usuarios_spotify ORDER BY id LIMIT 2'
   );
 
@@ -33,7 +42,7 @@ async function calcularMusicMatch(dias) {
   }
 
   const [u1, u2] = usuarios;
-  const filas = await reproduccionesPorArtista(dias);
+  const filas = await reproduccionesPorArtista(dias, database);
 
   // artista_id -> { nombre, imagen_url, plays_u1, plays_u2 }
   const porArtista = new Map();
