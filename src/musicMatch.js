@@ -21,6 +21,24 @@ async function reproduccionesPorArtista(dias, database) {
   return rows;
 }
 
+// Trae, para el período indicado, cuántas veces escuchó CADA usuario
+// a CADA canción (por cancion_id — dos canciones distintas del mismo
+// artista NUNCA cuentan como la misma). Misma idea que
+// reproduccionesPorArtista: se agrupa en SQL, se separa por usuario
+// en JS.
+async function reproduccionesPorCancion(dias, database) {
+  const { rows } = await database.query(
+    `SELECT r.usuario_id, c.id AS cancion_id, c.nombre, al.imagen_url, COUNT(*)::int AS plays
+     FROM reproducciones r
+     JOIN canciones c ON c.id = r.cancion_id
+     LEFT JOIN albumes al ON al.id = c.album_id
+     WHERE r.reproducido_en >= now() - make_interval(days => $1)
+     GROUP BY r.usuario_id, c.id, c.nombre, al.imagen_url`,
+    [dias]
+  );
+  return rows;
+}
+
 // Music Match entre los dos primeros usuarios conectados (Duo Charts
 // asume exactamente 2 cuentas). Usa similitud de Jaccard sobre el
 // conjunto de artistas escuchados por cada uno en el período:
@@ -42,7 +60,10 @@ async function calcularMusicMatch(dias, database = db) {
   }
 
   const [u1, u2] = usuarios;
-  const filas = await reproduccionesPorArtista(dias, database);
+  const [filas, filasCanciones] = await Promise.all([
+    reproduccionesPorArtista(dias, database),
+    reproduccionesPorCancion(dias, database)
+  ]);
 
   // artista_id -> { nombre, imagen_url, plays_u1, plays_u2 }
   const porArtista = new Map();
@@ -79,6 +100,35 @@ async function calcularMusicMatch(dias, database = db) {
   const reproduccionesU2 = union.reduce((acc, a) => acc + a.plays_u2, 0);
   const totalReproducciones = reproduccionesU1 + reproduccionesU2;
 
+  // Shared Tracks: mismo patrón que los artistas, pero agrupado por
+  // cancion_id — así dos canciones distintas del mismo artista jamás
+  // cuentan como "compartida" entre sí, solo la MISMA canción exacta.
+  const porCancion = new Map();
+  for (const fila of filasCanciones) {
+    if (fila.usuario_id !== u1.id && fila.usuario_id !== u2.id) continue;
+    if (!porCancion.has(fila.cancion_id)) {
+      porCancion.set(fila.cancion_id, {
+        nombre: fila.nombre,
+        imagen_url: fila.imagen_url,
+        plays_u1: 0,
+        plays_u2: 0
+      });
+    }
+    const entrada = porCancion.get(fila.cancion_id);
+    if (fila.usuario_id === u1.id) entrada.plays_u1 += fila.plays;
+    else entrada.plays_u2 += fila.plays;
+  }
+
+  const cancionesCompartidas = [...porCancion.values()].filter(
+    (c) => c.plays_u1 > 0 && c.plays_u2 > 0
+  );
+  const totalTracksCompartidos = cancionesCompartidas.length;
+
+  const trackPrincipal =
+    cancionesCompartidas
+      .slice()
+      .sort((a, b) => b.plays_u1 + b.plays_u2 - (a.plays_u1 + a.plays_u2))[0] || null;
+
   return {
     disponible: true,
     periodo_dias: dias,
@@ -90,6 +140,14 @@ async function calcularMusicMatch(dias, database = db) {
           nombre: artistaPrincipal.nombre,
           imagen_url: artistaPrincipal.imagen_url,
           reproducciones_totales: artistaPrincipal.plays_u1 + artistaPrincipal.plays_u2
+        }
+      : null,
+    tracks_compartidos: totalTracksCompartidos,
+    track_principal: trackPrincipal
+      ? {
+          nombre: trackPrincipal.nombre,
+          imagen_url: trackPrincipal.imagen_url,
+          reproducciones_totales: trackPrincipal.plays_u1 + trackPrincipal.plays_u2
         }
       : null,
     usuarios: [u1, u2],

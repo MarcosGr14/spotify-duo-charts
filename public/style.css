@@ -308,8 +308,6 @@ section + section { margin-top: 34px; }
 .pills button.active { color: var(--bg); background: var(--text); }
 
 /* ---------- TOP 3 ---------- */
-.top3-section { }
-
 .top3-heading {
   display: flex;
   align-items: baseline;
@@ -588,6 +586,174 @@ section + section { margin-top: 34px; }
 }
 
 [hidden] { display: none !important; }
+/* ============================================================
+   MUSIC MATCH (Fase 5 — Duo Intelligence)
+   "Personal Music Observatory": el % es lo protagonista, el resto
+   son datos de apoyo alrededor. Reusa las variables de color y la
+   tipografía existentes, nada nuevo se introduce.
+   ============================================================ */
+.match-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px clamp(18px, 3vw, 30px);
+}
+
+.match-loading,
+.match-unavailable {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 20px 10px;
+}
+
+.match-headline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.match-label {
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.match-percent-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  margin: 6px 0 2px;
+}
+
+.match-ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+
+.match-ring-track {
+  fill: none;
+  stroke: var(--elevated);
+  stroke-width: 9;
+}
+
+.match-ring-fill {
+  fill: none;
+  stroke: var(--up);
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-dasharray: 326.7; /* 2 * PI * 52 */
+  stroke-dashoffset: 326.7;
+  transition: stroke-dashoffset 0.6s ease;
+}
+
+.match-percent {
+  position: relative;
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.match-substats {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.match-top-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.match-top-card {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  min-width: 0;
+}
+
+.match-top-label {
+  display: block;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.match-top-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.match-top-art {
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.match-top-art.avatar { border-radius: 50%; }
+
+.match-top-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+
+.match-top-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.match-top-plays {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+}
+
+.match-balance { margin-top: 22px; }
+
+.balance-rows { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+
+.balance-row { display: flex; flex-direction: column; gap: 5px; }
+
+.balance-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.82rem;
+}
+
+.balance-name { font-weight: 700; }
+
+.balance-detail {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.balance-bar-track {
+  height: 6px;
+  border-radius: 4px;
+  background: var(--elevated);
+  overflow: hidden;
+}
+
+.balance-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--text);
+  transition: width 0.5s ease;
+}
+
+.balance-row:nth-child(2) .balance-bar-fill { background: var(--up); }
 
 /* ---------- RESPONSIVE ---------- */
 @media (max-width: 720px) {
@@ -614,9 +780,13 @@ section + section { margin-top: 34px; }
   .track-art { display: none; }
   .now-card { flex-direction: column; }
   .now-art { width: 64px; height: 64px; }
+
+  .match-top-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .live-dot { animation: none; }
   .now-progress-fill { transition: none; }
+  .match-ring-fill { transition: none; }
+  .balance-bar-fill { transition: none; }
 }

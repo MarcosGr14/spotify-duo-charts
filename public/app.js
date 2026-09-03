@@ -39,7 +39,22 @@ const el = {
   chartList: document.getElementById('chart-list'),
   loadMoreBtn: document.getElementById('load-more-btn'),
   loadingState: document.getElementById('loading-state'),
-  emptyState: document.getElementById('empty-state')
+  emptyState: document.getElementById('empty-state'),
+  // Music Match (Fase 5)
+  matchSection: document.getElementById('match-section'),
+  matchLoading: document.getElementById('match-loading'),
+  matchUnavailable: document.getElementById('match-unavailable'),
+  matchContent: document.getElementById('match-content'),
+  matchRingFill: document.getElementById('match-ring-fill'),
+  matchPercent: document.getElementById('match-percent'),
+  matchSubstats: document.getElementById('match-substats'),
+  matchArtistArt: document.getElementById('match-artist-art'),
+  matchArtistName: document.getElementById('match-artist-name'),
+  matchArtistPlays: document.getElementById('match-artist-plays'),
+  matchTrackArt: document.getElementById('match-track-art'),
+  matchTrackName: document.getElementById('match-track-name'),
+  matchTrackPlays: document.getElementById('match-track-plays'),
+  balanceRows: document.getElementById('balance-rows')
 };
 
 // ------------------------------------------------------------
@@ -190,6 +205,113 @@ function actualizarBarrasDeProgreso() {
     fill.style.width = `${pct}%`;
     if (tiempoEl) tiempoEl.textContent = formatearTiempo(elapsed);
   });
+}
+
+// ------------------------------------------------------------
+// Music Match (Fase 5 — Duo Intelligence)
+// ------------------------------------------------------------
+const CIRCUNFERENCIA_ANILLO = 2 * Math.PI * 52; // r=52, ver style.css
+
+function mostrarEstadoMatch(estado) {
+  // estado: 'loading' | 'unavailable' | 'content' | 'error'
+  el.matchLoading.hidden = estado !== 'loading';
+  el.matchUnavailable.hidden = estado !== 'unavailable' && estado !== 'error';
+  el.matchContent.hidden = estado !== 'content';
+  if (estado === 'error') {
+    el.matchUnavailable.querySelector('p').textContent =
+      'No se pudo cargar Music Match. Probá recargando la página.';
+  }
+}
+
+// Rellena una de las dos tarjetas "Top Shared" (artista o track). Si
+// item es null (sin datos compartidos todavía), muestra un estado
+// vacío legible en vez de dejar textos "undefined" o imágenes rotas.
+function renderTopCompartido({ artEl, nameEl, playsEl, item, esAvatar, mensajeVacio }) {
+  if (!item) {
+    artEl.src = placeholderArt();
+    artEl.alt = '';
+    nameEl.textContent = mensajeVacio;
+    playsEl.textContent = '';
+    return;
+  }
+  artEl.src = item.imagen_url || placeholderArt();
+  artEl.alt = item.nombre;
+  nameEl.textContent = item.nombre;
+  playsEl.textContent = `${item.reproducciones_totales}× combined plays`;
+}
+
+function renderBalance(balance) {
+  if (!balance || !balance.length) {
+    el.balanceRows.innerHTML = '<p class="balance-detail">No listening data yet for this period.</p>';
+    return;
+  }
+
+  el.balanceRows.innerHTML = balance
+    .map(
+      (b) => `
+        <div class="balance-row">
+          <div class="balance-row-top">
+            <span class="balance-name">${b.nombre_display}</span>
+            <span class="balance-detail">${b.reproducciones}× · ${b.porcentaje}%</span>
+          </div>
+          <div class="balance-bar-track">
+            <div class="balance-bar-fill" style="width:${b.porcentaje}%"></div>
+          </div>
+        </div>`
+    )
+    .join('');
+}
+
+async function cargarMusicMatch() {
+  el.matchSection.hidden = false;
+  mostrarEstadoMatch('loading');
+
+  try {
+    const resp = await fetch('/api/music-match?dias=7');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    if (!data.disponible) {
+      mostrarEstadoMatch('unavailable');
+      return;
+    }
+
+    // Anillo de porcentaje
+    const porcentaje = Number(data.porcentaje) || 0;
+    const offset = CIRCUNFERENCIA_ANILLO * (1 - porcentaje / 100);
+    el.matchRingFill.style.strokeDashoffset = String(offset);
+    el.matchPercent.textContent = `${porcentaje}%`;
+
+    // Sub-stats: "N shared artists · M shared tracks"
+    const artistasCompartidos = data.artistas_compartidos ?? 0;
+    const tracksCompartidos = data.tracks_compartidos ?? 0;
+    el.matchSubstats.textContent = `${artistasCompartidos} shared artist${artistasCompartidos === 1 ? '' : 's'} · ${tracksCompartidos} shared track${tracksCompartidos === 1 ? '' : 's'}`;
+
+    renderTopCompartido({
+      artEl: el.matchArtistArt,
+      nameEl: el.matchArtistName,
+      playsEl: el.matchArtistPlays,
+      item: data.artista_principal,
+      esAvatar: true,
+      mensajeVacio: 'No shared artists yet'
+    });
+
+    renderTopCompartido({
+      artEl: el.matchTrackArt,
+      nameEl: el.matchTrackName,
+      playsEl: el.matchTrackPlays,
+      item: data.track_principal,
+      esAvatar: false,
+      mensajeVacio: 'No shared tracks yet'
+    });
+
+    renderBalance(data.balance);
+
+    mostrarEstadoMatch('content');
+  } catch (err) {
+    console.error('Error consultando music-match:', err);
+    mostrarEstadoMatch('error');
+  }
 }
 
 // ------------------------------------------------------------
@@ -412,9 +534,10 @@ el.chartList.addEventListener('click', async (e) => {
 });
 
 // ------------------------------------------------------------
-// Overview: versión liviana (Now Playing + Top 3), sin controles ni lista
+// Overview: versión liviana (Now Playing + Music Match + Top 3), sin controles ni lista
 // ------------------------------------------------------------
 async function cargarOverview() {
+  cargarMusicMatch();
   try {
     const params = new URLSearchParams({ scope: 'global', dias: 7, tipo: 'canciones', offset: 0 });
     const resp = await fetch(`/api/charts?${params.toString()}`);
@@ -438,11 +561,13 @@ function switchView(view) {
     el.nowPlayingSection.hidden = false;
     el.controlsSection.hidden = true;
     el.listSection.hidden = true;
+    el.matchSection.hidden = false;
     cargarOverview();
   } else {
     el.nowPlayingSection.hidden = true;
     el.controlsSection.hidden = false;
     el.listSection.hidden = false;
+    el.matchSection.hidden = true;
     state.tipo = VISTA_A_TIPO[view];
     el.colTrackLabel.textContent = TITULOS_POR_VISTA[view].label;
     actualizarChart(true);

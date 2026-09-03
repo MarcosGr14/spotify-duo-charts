@@ -59,6 +59,65 @@
       </div>
     </section>
 
+    <!-- ============================================================
+         MUSIC MATCH (Fase 5 — Duo Intelligence)
+         Solo se muestra en la vista Overview. "Personal Music
+         Observatory": el % es lo protagonista, el resto son datos
+         de apoyo alrededor. Todo generado por JS en app.js.
+         ============================================================ -->
+    <section class="match-section" id="match-section" hidden>
+      <div class="match-loading" id="match-loading">Reading the signal…</div>
+
+      <div class="match-unavailable" id="match-unavailable" hidden>
+        <p>Music Match necesita las dos cuentas conectadas.</p>
+      </div>
+
+      <div class="match-content" id="match-content" hidden>
+        <div class="match-headline">
+          <span class="match-label mono">MUSIC MATCH</span>
+          <div class="match-percent-row">
+            <svg class="match-ring" id="match-ring" viewBox="0 0 120 120" width="88" height="88" aria-hidden="true">
+              <circle class="match-ring-track" cx="60" cy="60" r="52" />
+              <circle class="match-ring-fill" id="match-ring-fill" cx="60" cy="60" r="52" />
+            </svg>
+            <span class="match-percent" id="match-percent">—%</span>
+          </div>
+          <p class="match-substats mono" id="match-substats">— shared artists · — shared tracks</p>
+        </div>
+
+        <div class="match-top-grid">
+          <div class="match-top-card" id="match-top-artist">
+            <span class="match-top-label mono">TOP SHARED ARTIST</span>
+            <div class="match-top-body">
+              <img class="match-top-art avatar" id="match-artist-art" src="" alt="" />
+              <div class="match-top-meta">
+                <span class="match-top-name" id="match-artist-name">—</span>
+                <span class="match-top-plays mono" id="match-artist-plays"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="match-top-card" id="match-top-track">
+            <span class="match-top-label mono">TOP SHARED TRACK</span>
+            <div class="match-top-body">
+              <img class="match-top-art" id="match-track-art" src="" alt="" />
+              <div class="match-top-meta">
+                <span class="match-top-name" id="match-track-name">—</span>
+                <span class="match-top-plays mono" id="match-track-plays"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="match-balance" id="match-balance">
+          <span class="match-top-label mono">LISTENING BALANCE</span>
+          <div class="balance-rows" id="balance-rows">
+            <!-- Filas de balance generadas por JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="controls-section" id="controls-section" hidden>
       <div class="scope-period-row">
         <div class="pills" id="period-pills">
