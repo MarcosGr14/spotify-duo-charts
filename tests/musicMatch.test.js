@@ -169,4 +169,101 @@ describeSiHayDB('Music Match (requiere TEST_DATABASE_URL)', () => {
     const resultado = await calcularMusicMatch(7, pool);
     expect(resultado.artistas_union).toBe(0);
   });
+
+  // ------------------------------------------------------------
+  // Shared Tracks / Top Shared Track (Fase 5)
+  // ------------------------------------------------------------
+
+  test('shared track: ambos usuarios escuchan exactamente la misma canción', async () => {
+    const marcosId = await crearUsuario('marcos-id', 'Marcos');
+    const jackieId = await crearUsuario('jackie-id', 'Jackie');
+    const artA = await crearArtista('a-id', 'Artista Compartido');
+    const cancionCompartida = await crearCancion('t-shared', 'Canción Compartida', artA);
+
+    await reproducir(marcosId, cancionCompartida, 3);
+    await reproducir(jackieId, cancionCompartida, 5);
+
+    const resultado = await calcularMusicMatch(7, pool);
+    expect(resultado.tracks_compartidos).toBe(1);
+    expect(resultado.track_principal.nombre).toBe('Canción Compartida');
+    expect(resultado.track_principal.reproducciones_totales).toBe(8); // 3 + 5
+  });
+
+  test('mismo artista, distinta canción: NO cuenta como shared track', async () => {
+    const marcosId = await crearUsuario('marcos-id', 'Marcos');
+    const jackieId = await crearUsuario('jackie-id', 'Jackie');
+    const artA = await crearArtista('a-id', 'Mismo Artista');
+    // Dos canciones DISTINTAS del mismo artista, una para cada usuario
+    const cancionMarcos = await crearCancion('t-cancion-1', 'Canción Uno', artA);
+    const cancionJackie = await crearCancion('t-cancion-2', 'Canción Dos', artA);
+
+    await reproducir(marcosId, cancionMarcos, 4);
+    await reproducir(jackieId, cancionJackie, 4);
+
+    const resultado = await calcularMusicMatch(7, pool);
+    // El artista SÍ es compartido (misma persona, dos canciones)...
+    expect(resultado.artistas_compartidos).toBe(1);
+    // ...pero ninguna canción individual lo es, porque son tracks distintos.
+    expect(resultado.tracks_compartidos).toBe(0);
+    expect(resultado.track_principal).toBeNull();
+  });
+
+  test('top shared track: gana el de más reproducciones combinadas entre varios compartidos', async () => {
+    const marcosId = await crearUsuario('marcos-id', 'Marcos');
+    const jackieId = await crearUsuario('jackie-id', 'Jackie');
+    const art = await crearArtista('a-id', 'Artista');
+    const cancionChica = await crearCancion('t-chica', 'La Poco Escuchada', art);
+    const cancionGrande = await crearCancion('t-grande', 'La Más Escuchada', art);
+
+    // "La Poco Escuchada": 1 + 1 = 2 combinadas
+    await reproducir(marcosId, cancionChica, 1);
+    await reproducir(jackieId, cancionChica, 1);
+    // "La Más Escuchada": 5 + 6 = 11 combinadas
+    await reproducir(marcosId, cancionGrande, 5);
+    await reproducir(jackieId, cancionGrande, 6);
+
+    const resultado = await calcularMusicMatch(7, pool);
+    expect(resultado.tracks_compartidos).toBe(2);
+    expect(resultado.track_principal.nombre).toBe('La Más Escuchada');
+    expect(resultado.track_principal.reproducciones_totales).toBe(11);
+  });
+
+  test('sin shared tracks: tracks_compartidos es 0 y track_principal es null', async () => {
+    const marcosId = await crearUsuario('marcos-id', 'Marcos');
+    const jackieId = await crearUsuario('jackie-id', 'Jackie');
+    const artA = await crearArtista('a-id', 'Solo Marcos Artista');
+    const artB = await crearArtista('b-id', 'Solo Jackie Artista');
+    const cA = await crearCancion('t-a', 'Canción de Marcos', artA);
+    const cB = await crearCancion('t-b', 'Canción de Jackie', artB);
+
+    await reproducir(marcosId, cA, 5);
+    await reproducir(jackieId, cB, 5);
+
+    const resultado = await calcularMusicMatch(7, pool);
+    expect(resultado.tracks_compartidos).toBe(0);
+    expect(resultado.track_principal).toBeNull();
+  });
+
+  test('shared tracks respeta el período: reproducciones antiguas no cuentan', async () => {
+    const marcosId = await crearUsuario('marcos-id', 'Marcos');
+    const jackieId = await crearUsuario('jackie-id', 'Jackie');
+    const art = await crearArtista('a-id', 'Artista');
+    const cancionVieja = await crearCancion('t-vieja', 'Canción Vieja', art);
+
+    // Ambos la escucharon, pero hace 20 días — fuera de la ventana de 7 días
+    await pool.query(
+      `INSERT INTO reproducciones (usuario_id, cancion_id, reproducido_en)
+       VALUES ($1, $2, now() - interval '20 days')`,
+      [marcosId, cancionVieja]
+    );
+    await pool.query(
+      `INSERT INTO reproducciones (usuario_id, cancion_id, reproducido_en)
+       VALUES ($1, $2, now() - interval '20 days')`,
+      [jackieId, cancionVieja]
+    );
+
+    const resultado = await calcularMusicMatch(7, pool);
+    expect(resultado.tracks_compartidos).toBe(0);
+    expect(resultado.track_principal).toBeNull();
+  });
 });
