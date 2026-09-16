@@ -3,6 +3,7 @@ const Sentry = require('@sentry/node');
 const db = require('./db');
 const { describirError } = require('./errorUtils');
 const { calcularMusicMatch } = require('./musicMatch');
+const { calcularRecords } = require('./records');
 
 const router = express.Router();
 
@@ -35,7 +36,6 @@ router.get('/currently-playing', async (_req, res) => {
       ORDER BY u.id
     `);
 
-    // Si la última actualización tiene más de 2 minutos, la consideramos "pausado"
     const DOS_MINUTOS = 2 * 60 * 1000;
     const resultado = rows.map((r) => ({
       ...r,
@@ -53,9 +53,7 @@ router.get('/currently-playing', async (_req, res) => {
 });
 
 // ------------------------------------------------------------
-// Consultas SQL por tipo de ranking. Las tres devuelven las mismas
-// columnas (id, nombre, subtitulo, portada, posicion, veces_escuchada,
-// posicion_anterior) para que el frontend no tenga que distinguir casos.
+// Consultas SQL por tipo de ranking.
 // ------------------------------------------------------------
 const QUERY_CANCIONES = `
   WITH periodo_actual AS (
@@ -207,10 +205,7 @@ const QUERIES_POR_TIPO = {
 };
 
 // ------------------------------------------------------------
-// GET /api/charts?scope=global|individual&usuario_id=1&dias=7&tipo=canciones|artistas|albumes&offset=0
-// Devuelve el ranking con posición actual y variación vs el
-// período anterior (para las flechas de sube/baja). Pagina de a 20
-// con offset, para poder pedir "más" sin traer todo de una.
+// GET /api/charts
 // ------------------------------------------------------------
 router.get('/charts', async (req, res) => {
   const dias = parseInt(req.query.dias, 10) || 7;
@@ -229,7 +224,7 @@ router.get('/charts', async (req, res) => {
 
     const resultado = rows.map((r) => ({
       ...r,
-      cambio: r.posicion_anterior ? r.posicion_anterior - r.posicion : null // positivo = subió, null = nuevo
+      cambio: r.posicion_anterior ? r.posicion_anterior - r.posicion : null
     }));
 
     res.json(resultado);
@@ -241,7 +236,7 @@ router.get('/charts', async (req, res) => {
 });
 
 // ------------------------------------------------------------
-// GET /api/usuarios  ->  para poblar el selector de charts individuales
+// GET /api/usuarios
 // ------------------------------------------------------------
 router.get('/usuarios', async (_req, res) => {
   try {
@@ -257,11 +252,7 @@ router.get('/usuarios', async (_req, res) => {
 });
 
 // ------------------------------------------------------------
-// GET /api/historial-item?tipo=canciones|artistas|albumes&id=123&scope=global|individual&usuario_id=1
-// Devuelve las reproducciones día por día de los últimos 14 días
-// para UN ítem puntual (para el gráfico de evolución al hacer click
-// en una fila del ranking). Los días sin reproducciones vienen en 0,
-// no se saltean — así el gráfico no queda con huecos raros.
+// GET /api/historial-item
 // ------------------------------------------------------------
 const QUERY_HISTORIAL_CANCION = `
   SELECT gs::date AS fecha, COALESCE(cnt.plays, 0) AS plays
@@ -332,10 +323,6 @@ router.get('/historial-item', async (req, res) => {
 
 // ------------------------------------------------------------
 // GET /api/music-match?dias=7
-// Devuelve el porcentaje de compatibilidad musical entre las dos
-// cuentas conectadas (similitud de Jaccard sobre artistas escuchados
-// en el período), más el artista compartido principal y el balance
-// de reproducciones entre ambos. Ver src/musicMatch.js.
 // ------------------------------------------------------------
 router.get('/music-match', async (req, res) => {
   const dias = parseInt(req.query.dias, 10) || 7;
@@ -350,9 +337,26 @@ router.get('/music-match', async (req, res) => {
   }
 });
 
-// Se cuelgan como propiedades del router (que es una función, así que
-// puede tener propiedades) para que los tests puedan importar las
-// queries reales sin duplicar código ni necesitar trucos raros.
+// ------------------------------------------------------------
+// GET /api/records?dias=7
+// Insights históricos del dúo: Most Obsessed Track, Night Owl y
+// Shared Obsession. Ver src/records.js para las definiciones
+// exactas y los criterios de desempate documentados.
+// ------------------------------------------------------------
+router.get('/records', async (req, res) => {
+  const diasParseado = parseInt(req.query.dias, 10);
+  const dias = Number.isFinite(diasParseado) && diasParseado > 0 ? diasParseado : 7;
+
+  try {
+    const resultado = await calcularRecords(dias);
+    res.json(resultado);
+  } catch (err) {
+    console.error('Error en /api/records:', describirError(err));
+    Sentry.captureException(err, { tags: { ruta: '/api/records' } });
+    res.status(500).json({ error: 'No se pudieron calcular los records.' });
+  }
+});
+
 router.QUERIES_POR_TIPO = QUERIES_POR_TIPO;
 router.QUERIES_HISTORIAL = QUERIES_HISTORIAL;
 

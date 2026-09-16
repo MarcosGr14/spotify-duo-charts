@@ -586,6 +586,7 @@ section + section { margin-top: 34px; }
 }
 
 [hidden] { display: none !important; }
+
 /* ============================================================
    MUSIC MATCH (Fase 5 — Duo Intelligence)
    "Personal Music Observatory": el % es lo protagonista, el resto
@@ -755,7 +756,118 @@ section + section { margin-top: 34px; }
 
 .balance-row:nth-child(2) .balance-bar-fill { background: var(--up); }
 
+/* ============================================================
+   INSIGHTS / RECORDS (Fase 6)
+   Tarjetas editoriales chicas — "pequeños hallazgos", no un
+   dashboard administrativo. Reusa el mismo lenguaje visual que
+   Music Match (mismas variables, mismo radio, misma tipografía).
+   ============================================================ */
+.insights-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px clamp(18px, 3vw, 30px);
+}
+
+.insights-heading { margin-bottom: 16px; }
+
+.insights-title {
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.insights-loading,
+.insights-unavailable {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 16px 10px;
+}
+
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.insight-card {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.insight-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.insight-body-track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.insight-art {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.insight-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insight-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.insight-sub {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.insight-detail {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.insight-body-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+  min-height: 48px;
+}
+
 /* ---------- RESPONSIVE ---------- */
+@media (max-width: 780px) {
+  .insights-grid { grid-template-columns: 1fr 1fr; }
+  .insight-card:first-child { grid-column: 1 / -1; }
+}
+
 @media (max-width: 720px) {
   .top3-grid { grid-template-columns: 1fr 1fr; }
   .top3-card.featured { grid-column: 1 / -1; order: -1; }
@@ -782,6 +894,9 @@ section + section { margin-top: 34px; }
   .now-art { width: 64px; height: 64px; }
 
   .match-top-grid { grid-template-columns: 1fr; }
+
+  .insights-grid { grid-template-columns: 1fr; }
+  .insight-card:first-child { grid-column: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -118,6 +118,55 @@
       </div>
     </section>
 
+    <!-- ============================================================
+         INSIGHTS / RECORDS (Fase 6 — hallazgos históricos)
+         Tarjetas editoriales chicas, no una tabla. Solo en Overview.
+         ============================================================ -->
+    <section class="insights-section" id="insights-section" hidden>
+      <div class="insights-heading">
+        <span class="insights-title mono">INSIGHTS</span>
+      </div>
+
+      <div class="insights-loading" id="insights-loading">Digging through the history…</div>
+      <div class="insights-unavailable" id="insights-unavailable" hidden>
+        <p>Insights necesitan las dos cuentas conectadas.</p>
+      </div>
+
+      <div class="insights-grid" id="insights-grid" hidden>
+        <div class="insight-card" id="insight-obsessed">
+          <span class="insight-label mono">MOST OBSESSED TRACK</span>
+          <div class="insight-body insight-body-track">
+            <img class="insight-art" id="insight-obsessed-art" src="" alt="" />
+            <div class="insight-meta">
+              <span class="insight-name" id="insight-obsessed-name">—</span>
+              <span class="insight-sub" id="insight-obsessed-artist"></span>
+              <span class="insight-detail mono" id="insight-obsessed-plays"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="insight-card" id="insight-night-owl">
+          <span class="insight-label mono">NIGHT OWL</span>
+          <div class="insight-body insight-body-text">
+            <span class="insight-name" id="insight-owl-name">—</span>
+            <span class="insight-detail mono" id="insight-owl-detail"></span>
+          </div>
+        </div>
+
+        <div class="insight-card" id="insight-shared-obsession">
+          <span class="insight-label mono">SHARED OBSESSION</span>
+          <div class="insight-body insight-body-track">
+            <img class="insight-art" id="insight-shared-art" src="" alt="" />
+            <div class="insight-meta">
+              <span class="insight-name" id="insight-shared-name">—</span>
+              <span class="insight-sub" id="insight-shared-artist"></span>
+              <span class="insight-detail mono" id="insight-shared-detail"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="controls-section" id="controls-section" hidden>
       <div class="scope-period-row">
         <div class="pills" id="period-pills">
