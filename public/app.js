@@ -54,7 +54,22 @@ const el = {
   matchTrackArt: document.getElementById('match-track-art'),
   matchTrackName: document.getElementById('match-track-name'),
   matchTrackPlays: document.getElementById('match-track-plays'),
-  balanceRows: document.getElementById('balance-rows')
+  balanceRows: document.getElementById('balance-rows'),
+  // Insights / Records (Fase 6)
+  insightsSection: document.getElementById('insights-section'),
+  insightsLoading: document.getElementById('insights-loading'),
+  insightsUnavailable: document.getElementById('insights-unavailable'),
+  insightsGrid: document.getElementById('insights-grid'),
+  insightObsessedArt: document.getElementById('insight-obsessed-art'),
+  insightObsessedName: document.getElementById('insight-obsessed-name'),
+  insightObsessedArtist: document.getElementById('insight-obsessed-artist'),
+  insightObsessedPlays: document.getElementById('insight-obsessed-plays'),
+  insightOwlName: document.getElementById('insight-owl-name'),
+  insightOwlDetail: document.getElementById('insight-owl-detail'),
+  insightSharedArt: document.getElementById('insight-shared-art'),
+  insightSharedName: document.getElementById('insight-shared-name'),
+  insightSharedArtist: document.getElementById('insight-shared-artist'),
+  insightSharedDetail: document.getElementById('insight-shared-detail')
 };
 
 // ------------------------------------------------------------
@@ -315,6 +330,97 @@ async function cargarMusicMatch() {
 }
 
 // ------------------------------------------------------------
+// Insights / Records (Fase 6)
+// ------------------------------------------------------------
+function mostrarEstadoInsights(estado) {
+  // estado: 'loading' | 'unavailable' | 'content' | 'error'
+  el.insightsLoading.hidden = estado !== 'loading';
+  el.insightsUnavailable.hidden = estado !== 'unavailable' && estado !== 'error';
+  el.insightsGrid.hidden = estado !== 'content';
+  if (estado === 'error') {
+    el.insightsUnavailable.querySelector('p').textContent =
+      'No se pudieron cargar los insights. Probá recargando la página.';
+  }
+}
+
+function renderMostObsessedTrack(item) {
+  if (!item) {
+    el.insightObsessedArt.src = placeholderArt();
+    el.insightObsessedArt.alt = '';
+    el.insightObsessedName.textContent = 'Not enough plays yet';
+    el.insightObsessedArtist.textContent = '';
+    el.insightObsessedPlays.textContent = '';
+    return;
+  }
+  el.insightObsessedArt.src = item.imagen_url || placeholderArt();
+  el.insightObsessedArt.alt = item.nombre;
+  el.insightObsessedName.textContent = item.nombre;
+  el.insightObsessedArtist.textContent = item.artista || '';
+  el.insightObsessedPlays.textContent = `${item.reproducciones_totales}× plays`;
+}
+
+function renderNightOwl(nightOwl) {
+  if (!nightOwl) {
+    el.insightOwlName.textContent = 'No late-night listening yet';
+    el.insightOwlDetail.textContent = '';
+    return;
+  }
+  el.insightOwlName.textContent = nightOwl.nombre_display;
+  el.insightOwlDetail.textContent = `${nightOwl.reproducciones_nocturnas} late-night plays · ${nightOwl.porcentaje_nocturno}%`;
+}
+
+function renderSharedObsession(item) {
+  if (!item) {
+    el.insightSharedArt.src = placeholderArt();
+    el.insightSharedArt.alt = '';
+    el.insightSharedName.textContent = 'No shared obsession yet';
+    el.insightSharedArtist.textContent = '';
+    el.insightSharedDetail.textContent = '';
+    return;
+  }
+
+  // plays_usuario_1/2 vienen en el mismo orden por id que /api/usuarios
+  // (calcularRecords ordena "ORDER BY id LIMIT 2"), así que usamos los
+  // nombres reales ya cargados en state.usuarios en vez de hardcodear
+  // "Marcos"/"Jackie" — si algún día cambian los nombres de las cuentas,
+  // esto sigue funcionando sin tocar el frontend.
+  const [nombreU1, nombreU2] = state.usuarios.length >= 2
+    ? [state.usuarios[0].nombre_display, state.usuarios[1].nombre_display]
+    : ['Usuario 1', 'Usuario 2'];
+
+  el.insightSharedArt.src = item.imagen_url || placeholderArt();
+  el.insightSharedArt.alt = item.nombre;
+  el.insightSharedName.textContent = item.nombre;
+  el.insightSharedArtist.textContent = item.artista || '';
+  el.insightSharedDetail.textContent = `${nombreU1} ${item.plays_usuario_1} · ${nombreU2} ${item.plays_usuario_2}`;
+}
+
+async function cargarInsights() {
+  el.insightsSection.hidden = false;
+  mostrarEstadoInsights('loading');
+
+  try {
+    const resp = await fetch('/api/records?dias=7');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    if (!data.disponible) {
+      mostrarEstadoInsights('unavailable');
+      return;
+    }
+
+    renderMostObsessedTrack(data.most_obsessed_track);
+    renderNightOwl(data.night_owl);
+    renderSharedObsession(data.shared_obsession);
+
+    mostrarEstadoInsights('content');
+  } catch (err) {
+    console.error('Error consultando records:', err);
+    mostrarEstadoInsights('error');
+  }
+}
+
+// ------------------------------------------------------------
 // Top 3 destacado
 // ------------------------------------------------------------
 function renderTop3(items, titulo, subtitulo, esAvatar, mostrarVerTodo) {
@@ -534,10 +640,11 @@ el.chartList.addEventListener('click', async (e) => {
 });
 
 // ------------------------------------------------------------
-// Overview: versión liviana (Now Playing + Music Match + Top 3), sin controles ni lista
+// Overview: versión liviana (Now Playing + Music Match + Insights + Top 3), sin controles ni lista
 // ------------------------------------------------------------
 async function cargarOverview() {
   cargarMusicMatch();
+  cargarInsights();
   try {
     const params = new URLSearchParams({ scope: 'global', dias: 7, tipo: 'canciones', offset: 0 });
     const resp = await fetch(`/api/charts?${params.toString()}`);
@@ -562,12 +669,14 @@ function switchView(view) {
     el.controlsSection.hidden = true;
     el.listSection.hidden = true;
     el.matchSection.hidden = false;
+    el.insightsSection.hidden = false;
     cargarOverview();
   } else {
     el.nowPlayingSection.hidden = true;
     el.controlsSection.hidden = false;
     el.listSection.hidden = false;
     el.matchSection.hidden = true;
+    el.insightsSection.hidden = true;
     state.tipo = VISTA_A_TIPO[view];
     el.colTrackLabel.textContent = TITULOS_POR_VISTA[view].label;
     actualizarChart(true);
