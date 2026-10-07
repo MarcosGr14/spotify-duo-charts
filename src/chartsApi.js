@@ -4,6 +4,7 @@ const db = require('./db');
 const { describirError } = require('./errorUtils');
 const { calcularMusicMatch } = require('./musicMatch');
 const { calcularRecords } = require('./records');
+const { calcularActividad } = require('./activityStats');
 
 const router = express.Router();
 
@@ -93,11 +94,14 @@ const QUERY_CANCIONES = `
   LEFT JOIN cancion_artistas ca ON ca.cancion_id = c.id
   LEFT JOIN artistas ar ON ar.id = ca.artista_id
   LEFT JOIN rank_anterior ran ON ran.cancion_id = ra.cancion_id
-  WHERE $5::text IS NULL OR EXISTS (
-    SELECT 1 FROM cancion_artistas ca2
-    JOIN artistas ar2 ON ar2.id = ca2.artista_id
-    WHERE ca2.cancion_id = c.id AND ar2.nombre ILIKE '%' || $5 || '%'
-  )
+  WHERE $5::text IS NULL
+     OR c.nombre ILIKE '%' || $5 || '%'
+     OR al.nombre ILIKE '%' || $5 || '%'
+     OR EXISTS (
+       SELECT 1 FROM cancion_artistas ca2
+       JOIN artistas ar2 ON ar2.id = ca2.artista_id
+       WHERE ca2.cancion_id = c.id AND ar2.nombre ILIKE '%' || $5 || '%'
+     )
   GROUP BY c.id, c.nombre, al.imagen_url, ra.posicion, ra.plays, ran.posicion
   ORDER BY ra.posicion
   LIMIT $3 OFFSET $4
@@ -187,12 +191,14 @@ const QUERY_ALBUMES = `
   LEFT JOIN cancion_artistas ca3 ON ca3.cancion_id = c3.id
   LEFT JOIN artistas ar ON ar.id = ca3.artista_id
   LEFT JOIN rank_anterior ran ON ran.album_id = ra.album_id
-  WHERE $5::text IS NULL OR EXISTS (
-    SELECT 1 FROM canciones c4
-    JOIN cancion_artistas ca4 ON ca4.cancion_id = c4.id
-    JOIN artistas ar4 ON ar4.id = ca4.artista_id
-    WHERE c4.album_id = al.id AND ar4.nombre ILIKE '%' || $5 || '%'
-  )
+  WHERE $5::text IS NULL
+     OR al.nombre ILIKE '%' || $5 || '%'
+     OR EXISTS (
+       SELECT 1 FROM canciones c4
+       JOIN cancion_artistas ca4 ON ca4.cancion_id = c4.id
+       JOIN artistas ar4 ON ar4.id = ca4.artista_id
+       WHERE c4.album_id = al.id AND ar4.nombre ILIKE '%' || $5 || '%'
+     )
   GROUP BY al.id, al.nombre, al.imagen_url, ra.posicion, ra.plays, ran.posicion
   ORDER BY ra.posicion
   LIMIT $3 OFFSET $4
@@ -215,7 +221,12 @@ router.get('/charts', async (req, res) => {
       ? parseInt(req.query.usuario_id, 10)
       : null;
   const tipo = QUERIES_POR_TIPO[req.query.tipo] ? req.query.tipo : 'canciones';
-  const limit = 20;
+  // El dashboard usa 20 por página; CSV puede pedir hasta 5001 para
+  // detectar y comunicar si se alcanza su límite de exportación (5000).
+  const limiteSolicitado = Number.parseInt(req.query.limit, 10);
+  const limit = Number.isInteger(limiteSolicitado) && limiteSolicitado > 0
+    ? Math.min(limiteSolicitado, 5001)
+    : 20;
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   const busqueda = req.query.busqueda && req.query.busqueda.trim() ? req.query.busqueda.trim() : null;
 
@@ -354,6 +365,30 @@ router.get('/records', async (req, res) => {
     console.error('Error en /api/records:', describirError(err));
     Sentry.captureException(err, { tags: { ruta: '/api/records' } });
     res.status(500).json({ error: 'No se pudieron calcular los records.' });
+  }
+});
+
+// GET /api/activity?month=YYYY-MM&scope=global|individual&usuario_id=1
+// Estadísticas derivadas del historial existente; no modifica reproducciones.
+router.get('/activity', async (req, res) => {
+  const mes = req.query.month;
+  if (mes && !/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) {
+    return res.status(400).json({ error: 'El mes debe tener formato YYYY-MM.' });
+  }
+
+  const scope = req.query.scope === 'individual' ? 'individual' : 'global';
+  const usuarioId = scope === 'individual' ? Number.parseInt(req.query.usuario_id, 10) : null;
+
+  try {
+    const resultado = await calcularActividad({
+      mes,
+      usuarioId: Number.isInteger(usuarioId) ? usuarioId : null
+    });
+    res.json(resultado);
+  } catch (err) {
+    console.error('Error en /api/activity:', describirError(err));
+    Sentry.captureException(err, { tags: { ruta: '/api/activity' } });
+    res.status(500).json({ error: 'No se pudieron calcular las estadísticas de escucha.' });
   }
 });
 

@@ -8,7 +8,15 @@ const state = {
   offset: 0,
   busqueda: '',
   nowPlaying: {}, // usuario_id -> { empezoEn, duracionMs } — para el ticker de progreso local
-  colorCache: {} // url de portada -> color rgb() promedio, para no recalcular
+  colorCache: {}, // url de portada -> color rgb() promedio, para no recalcular
+  activityMonth: null,
+  activityScope: 'global',
+  activityUserId: null,
+  activityData: null,
+  activityTimezone: 'America/Panama',
+  profileUserId: null,
+  profileData: null,
+  profileColor: '#ff5f6d'
 };
 
 const LIMITE_POR_PAGINA = 20;
@@ -38,8 +46,11 @@ const el = {
   colTrackLabel: document.getElementById('col-track-label'),
   chartList: document.getElementById('chart-list'),
   loadMoreBtn: document.getElementById('load-more-btn'),
+  exportBtn: document.getElementById('export-chart-btn'),
+  exportStatus: document.getElementById('export-status'),
   loadingState: document.getElementById('loading-state'),
   emptyState: document.getElementById('empty-state'),
+  retryChartBtn: document.getElementById('retry-chart-btn'),
   // Music Match (Fase 5)
   matchSection: document.getElementById('match-section'),
   matchLoading: document.getElementById('match-loading'),
@@ -69,7 +80,35 @@ const el = {
   insightSharedArt: document.getElementById('insight-shared-art'),
   insightSharedName: document.getElementById('insight-shared-name'),
   insightSharedArtist: document.getElementById('insight-shared-artist'),
-  insightSharedDetail: document.getElementById('insight-shared-detail')
+  insightSharedDetail: document.getElementById('insight-shared-detail'),
+  activitySection: document.getElementById('activity-section'),
+  activityScopePills: document.getElementById('activity-scope-pills'),
+  activityMonthLabel: document.getElementById('activity-month-label'),
+  activityLoading: document.getElementById('activity-loading'),
+  activityError: document.getElementById('activity-error'),
+  activityContent: document.getElementById('activity-content'),
+  activityStats: document.getElementById('activity-stats'),
+  activityHeatmap: document.getElementById('activity-heatmap'),
+  activityCalendar: document.getElementById('activity-calendar'),
+  activityDayDetail: document.getElementById('activity-day-detail'),
+  activityDiscoveries: document.getElementById('activity-discoveries'),
+  activityDuoPanel: document.getElementById('activity-duo-panel'),
+  activityDuo: document.getElementById('activity-duo'),
+  profileSection: document.getElementById('profile-section'),
+  profileName: document.getElementById('profile-name'),
+  profileUsers: document.getElementById('profile-users'),
+  profileColors: document.getElementById('profile-colors'),
+  profileCustomColor: document.getElementById('profile-custom-color'),
+  profileLoading: document.getElementById('profile-loading'),
+  profileError: document.getElementById('profile-error'),
+  profileContent: document.getElementById('profile-content'),
+  profileStats: document.getElementById('profile-stats'),
+  profileTopSongs: document.getElementById('profile-top-songs'),
+  profileTopArtists: document.getElementById('profile-top-artists'),
+  profileTopAlbums: document.getElementById('profile-top-albums'),
+  profileRecapPreview: document.getElementById('profile-recap-preview'),
+  profileRecapStatus: document.getElementById('profile-recap-status'),
+  profileDownload: document.getElementById('profile-download')
 };
 
 // ------------------------------------------------------------
@@ -82,6 +121,22 @@ function placeholderArt() {
       <text x="30" y="36" font-size="22" fill="#3a3a45" text-anchor="middle" font-family="sans-serif">♪</text>
     </svg>`
   )}`;
+}
+
+function escaparHTML(valor) {
+  return String(valor ?? '').replace(/[&<>"']/g, (caracter) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[caracter]);
+}
+
+function imagenSegura(url) {
+  if (!url) return placeholderArt();
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return ['https:', 'http:'].includes(parsed.protocol) ? escaparHTML(parsed.href) : placeholderArt();
+  } catch {
+    return placeholderArt();
+  }
 }
 
 function formatearTiempo(ms) {
@@ -148,9 +203,9 @@ async function actualizarTicker() {
           delete state.nowPlaying[u.usuario_id];
           return `
             <div class="now-card idle needs-reconnect">
-              <img class="now-art" src="${u.usuario_imagen || placeholderArt()}" alt="" />
+              <img class="now-art" src="${imagenSegura(u.usuario_imagen)}" alt="" />
               <div class="now-info">
-                <div class="now-user-row"><span class="now-user">${u.nombre_display.toUpperCase()}</span></div>
+                <div class="now-user-row"><span class="now-user">${escaparHTML(String(u.nombre_display).toUpperCase())}</span></div>
                 <div class="reconnect-msg">Account disconnected</div>
                 <a class="reconnect-btn" href="/login/${slug}">Reconnect</a>
               </div>
@@ -163,7 +218,7 @@ async function actualizarTicker() {
             <div class="now-card idle">
               <img class="now-art" src="${placeholderArt()}" alt="" />
               <div class="now-info">
-                <div class="now-user-row"><span class="now-user">${u.nombre_display.toUpperCase()}</span></div>
+                <div class="now-user-row"><span class="now-user">${escaparHTML(String(u.nombre_display).toUpperCase())}</span></div>
                 <div class="now-status">Not listening right now</div>
               </div>
             </div>`;
@@ -179,14 +234,14 @@ async function actualizarTicker() {
 
         return `
           <div class="now-card playing" ${color ? `style="--card-accent: ${color}"` : ''}>
-            <img class="now-art" src="${u.portada || placeholderArt()}" alt="" />
+            <img class="now-art" src="${imagenSegura(u.portada)}" alt="" />
             <div class="now-info">
               <div class="now-user-row">
-                <span class="now-user">${u.nombre_display.toUpperCase()}</span>
+                <span class="now-user">${escaparHTML(String(u.nombre_display).toUpperCase())}</span>
                 <span class="live-badge"><span class="live-dot"></span>LIVE</span>
               </div>
-              <div class="now-track">${u.cancion}</div>
-              <div class="now-artist">${u.artistas || ''}</div>
+              <div class="now-track">${escaparHTML(u.cancion)}</div>
+              <div class="now-artist">${escaparHTML(u.artistas || '')}</div>
               ${
                 tieneProgreso
                   ? `<div class="now-progress-track"><div class="now-progress-fill" data-usuario="${u.usuario_id}" style="width:0%"></div></div>
@@ -249,7 +304,7 @@ function renderTopCompartido({ artEl, nameEl, playsEl, item, esAvatar, mensajeVa
     playsEl.textContent = '';
     return;
   }
-  artEl.src = item.imagen_url || placeholderArt();
+  artEl.src = imagenSegura(item.imagen_url);
   artEl.alt = item.nombre;
   nameEl.textContent = item.nombre;
   playsEl.textContent = `${item.reproducciones_totales}× combined plays`;
@@ -266,7 +321,7 @@ function renderBalance(balance) {
       (b) => `
         <div class="balance-row">
           <div class="balance-row-top">
-            <span class="balance-name">${b.nombre_display}</span>
+          <span class="balance-name">${escaparHTML(b.nombre_display)}</span>
             <span class="balance-detail">${b.reproducciones}× · ${b.porcentaje}%</span>
           </div>
           <div class="balance-bar-track">
@@ -352,7 +407,7 @@ function renderMostObsessedTrack(item) {
     el.insightObsessedPlays.textContent = '';
     return;
   }
-  el.insightObsessedArt.src = item.imagen_url || placeholderArt();
+  el.insightObsessedArt.src = imagenSegura(item.imagen_url);
   el.insightObsessedArt.alt = item.nombre;
   el.insightObsessedName.textContent = item.nombre;
   el.insightObsessedArtist.textContent = item.artista || '';
@@ -388,7 +443,7 @@ function renderSharedObsession(item) {
     ? [state.usuarios[0].nombre_display, state.usuarios[1].nombre_display]
     : ['Usuario 1', 'Usuario 2'];
 
-  el.insightSharedArt.src = item.imagen_url || placeholderArt();
+  el.insightSharedArt.src = imagenSegura(item.imagen_url);
   el.insightSharedArt.alt = item.nombre;
   el.insightSharedName.textContent = item.nombre;
   el.insightSharedArtist.textContent = item.artista || '';
@@ -440,12 +495,12 @@ function renderTop3(items, titulo, subtitulo, esAvatar, mostrarVerTodo) {
     .map((item) => {
       const esFeatured = item === i1;
       return `
-        <div class="top3-card${esFeatured ? ' featured' : ''}${esAvatar ? ' avatar' : ''}" data-id="${item.id}">
+      <div class="top3-card${esFeatured ? ' featured' : ''}${esAvatar ? ' avatar' : ''}" data-id="${Number(item.id)}">
           <div class="top3-rank mono">#${item.posicion}</div>
-          <img class="top3-art" src="${item.portada || placeholderArt()}" alt="" />
-          <div class="top3-name">${item.nombre}</div>
-          ${item.subtitulo ? `<div class="top3-artist">${item.subtitulo}</div>` : ''}
-          <div class="top3-plays">${item.veces_escuchada}× plays</div>
+          <img class="top3-art" src="${imagenSegura(item.portada)}" alt="" loading="lazy" />
+          <div class="top3-name">${escaparHTML(item.nombre)}</div>
+          ${item.subtitulo ? `<div class="top3-artist">${escaparHTML(item.subtitulo)}</div>` : ''}
+          <div class="top3-plays">${Number(item.veces_escuchada) || 0}× plays</div>
         </div>`;
     })
     .join('');
@@ -469,17 +524,17 @@ el.top3Section.addEventListener('click', (e) => {
 // ------------------------------------------------------------
 function renderFila(item, esAvatar, modoSinComparacion) {
   return `
-    <li class="chart-row" data-id="${item.id}">
-      <span class="col-pos mono">${item.posicion}</span>
+    <li class="chart-row" data-id="${Number(item.id)}" role="button" tabindex="0" aria-expanded="false" aria-label="View 14-day trend for ${escaparHTML(item.nombre)}">
+      <span class="col-pos mono">${Number(item.posicion) || ''}</span>
       <div class="track-cell">
-        <img class="track-art${esAvatar ? ' avatar' : ''}" src="${item.portada || placeholderArt()}" alt="" />
+        <img class="track-art${esAvatar ? ' avatar' : ''}" src="${imagenSegura(item.portada)}" alt="" loading="lazy" />
         <div class="track-meta">
-          <div class="track-name">${item.nombre}</div>
-          ${item.subtitulo ? `<div class="track-artist">${item.subtitulo}</div>` : ''}
+          <div class="track-name">${escaparHTML(item.nombre)}</div>
+          ${item.subtitulo ? `<div class="track-artist">${escaparHTML(item.subtitulo)}</div>` : ''}
           <div class="evolucion-hint">View trend ▾</div>
         </div>
       </div>
-      <span class="col-plays">${item.veces_escuchada}×</span>
+      <span class="col-plays">${Number(item.veces_escuchada) || 0}×</span>
       <span class="col-change">${modoSinComparacion ? '<span class="change-same">—</span>' : renderCambio(item.cambio)}</span>
     </li>`;
 }
@@ -509,6 +564,7 @@ async function actualizarChart(reset = true) {
 
   if (reset) {
     el.emptyState.hidden = true;
+    el.retryChartBtn.hidden = true;
     el.loadingState.hidden = false;
     el.chartList.classList.add('loading');
     el.loadMoreBtn.hidden = true;
@@ -519,7 +575,9 @@ async function actualizarChart(reset = true) {
 
   try {
     const resp = await fetch(`/api/charts?${params.toString()}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
+    if (!Array.isArray(data)) throw new Error('Invalid chart response');
     if (idSolicitud !== ultimaSolicitudChart) return;
 
     el.loadingState.hidden = true;
@@ -539,7 +597,9 @@ async function actualizarChart(reset = true) {
 
       if (!data.length) {
         el.chartList.innerHTML = '';
+        el.emptyState.textContent = 'Not enough data yet for this window. Keep listening and the chart will build itself.';
         el.emptyState.hidden = false;
+        el.retryChartBtn.hidden = true;
       } else {
         el.emptyState.hidden = true;
         el.chartList.innerHTML = resto.map((item) => renderFila(item, esAvatar, modoSinComparacion)).join('');
@@ -561,12 +621,101 @@ async function actualizarChart(reset = true) {
     el.loadMoreBtn.disabled = false;
     if (reset) {
       el.chartList.innerHTML = '';
-      el.emptyState.textContent = 'Could not load the chart. Try reloading the page.';
+      el.emptyState.textContent = err.message.startsWith('HTTP')
+        ? `The server could not load this chart (${err.message}). Check the terminal for the database/API error.`
+        : err instanceof TypeError
+          ? 'Could not reach the local server. Confirm it is running, then try again.'
+          : 'The server returned an invalid response. Check its terminal output, then try again.';
       el.emptyState.hidden = false;
+      el.retryChartBtn.hidden = false;
     }
     console.error('Error consultando charts:', err);
   }
 }
+
+el.retryChartBtn.addEventListener('click', () => actualizarChart(true));
+
+// Descarga el ranking filtrado consultando las páginas de la misma API.
+// No modifica ni crea datos en la base; el CSV se genera localmente.
+function campoCSV(valor) {
+  let texto = String(valor ?? '');
+  // Evita que hojas de cálculo interpreten nombres como fórmulas.
+  if (/^[\t\r\n ]*[=+@-]/.test(texto)) texto = `'${texto}`;
+  return `"${texto.replace(/"/g, '""')}"`;
+}
+
+async function exportarRankingCSV() {
+  if (el.exportBtn.disabled) return;
+  el.exportBtn.disabled = true;
+  el.exportBtn.setAttribute('aria-busy', 'true');
+  el.exportStatus.textContent = 'Preparing export…';
+
+  const parametrosBase = construirParams(0);
+  const tipoExportado = parametrosBase.get('tipo');
+  const periodoExportado = parametrosBase.get('dias') === String(DIAS_TODO_EL_TIEMPO)
+    ? 'all-time'
+    : `${parametrosBase.get('dias')}-days`;
+  const usuarioExportado = state.usuarios.find((u) => u.id === Number(parametrosBase.get('usuario_id')));
+  const alcanceExportado = parametrosBase.get('scope') === 'individual'
+    ? (usuarioExportado?.nombre_display || 'individual')
+    : 'global';
+  const filas = [];
+  const maxFilas = 5000;
+  let truncado = false;
+
+  try {
+    const params = new URLSearchParams(parametrosBase);
+    params.set('limit', String(maxFilas + 1));
+    const resp = await fetch(`/api/charts?${params.toString()}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const resultado = await resp.json();
+    if (!Array.isArray(resultado)) throw new Error('Respuesta de ranking inválida');
+    truncado = resultado.length > maxFilas;
+    filas.push(...resultado.slice(0, maxFilas));
+    el.exportStatus.textContent = `Preparing ${filas.length.toLocaleString()} rows…`;
+
+    if (!filas.length) {
+      el.exportStatus.textContent = 'No rows to export for these filters.';
+      return;
+    }
+
+    const headers = ['Period', 'Scope', 'Search', 'Position', 'Name', 'Artist', 'Plays', 'Rank change'];
+    const lineas = [headers.map(campoCSV).join(',')];
+    for (const fila of filas) {
+      lineas.push([
+        periodoExportado,
+        alcanceExportado,
+        parametrosBase.get('busqueda') || '',
+        Number(fila.posicion) || '',
+        fila.nombre,
+        fila.subtitulo,
+        Number(fila.veces_escuchada) || 0,
+        fila.cambio == null ? '' : Number(fila.cambio)
+      ].map(campoCSV).join(','));
+    }
+
+    const blob = new Blob([`\uFEFF${lineas.join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = url;
+    enlace.download = `spotify-duo-${tipoExportado}-${periodoExportado}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    el.exportStatus.textContent = truncado
+      ? `Exported ${filas.length.toLocaleString()} rows (maximum reached).`
+      : `Exported ${filas.length.toLocaleString()} rows.`;
+  } catch (err) {
+    console.error('Error exportando ranking:', err);
+    el.exportStatus.textContent = 'Export failed. Please try again.';
+  } finally {
+    el.exportBtn.disabled = false;
+    el.exportBtn.removeAttribute('aria-busy');
+  }
+}
+
+el.exportBtn.addEventListener('click', exportarRankingCSV);
 
 el.loadMoreBtn.addEventListener('click', () => actualizarChart(false));
 
@@ -611,11 +760,18 @@ el.chartList.addEventListener('click', async (e) => {
   const yaAbierto = detalleExistente && detalleExistente.classList.contains('chart-detail');
 
   el.chartList.querySelectorAll('.chart-detail').forEach((n) => n.remove());
-  el.chartList.querySelectorAll('.chart-row.expanded').forEach((n) => n.classList.remove('expanded'));
+  el.chartList.querySelectorAll('.chart-row.expanded').forEach((n) => {
+    n.classList.remove('expanded');
+    n.setAttribute('aria-expanded', 'false');
+  });
 
-  if (yaAbierto) return;
+  if (yaAbierto) {
+    fila.setAttribute('aria-expanded', 'false');
+    return;
+  }
 
   fila.classList.add('expanded');
+  fila.setAttribute('aria-expanded', 'true');
   const detalle = document.createElement('li');
   detalle.className = 'chart-detail';
   detalle.innerHTML = '<div class="mini-chart-loading">Loading trend…</div>';
@@ -639,12 +795,20 @@ el.chartList.addEventListener('click', async (e) => {
   }
 });
 
+el.chartList.addEventListener('keydown', (e) => {
+  const fila = e.target.closest('.chart-row');
+  if (!fila || !['Enter', ' '].includes(e.key)) return;
+  e.preventDefault();
+  fila.click();
+});
+
 // ------------------------------------------------------------
 // Overview: versión liviana (Now Playing + Music Match + Insights + Top 3), sin controles ni lista
 // ------------------------------------------------------------
 async function cargarOverview() {
   cargarMusicMatch();
   cargarInsights();
+  cargarActividad();
   try {
     const params = new URLSearchParams({ scope: 'global', dias: 7, tipo: 'canciones', offset: 0 });
     const resp = await fetch(`/api/charts?${params.toString()}`);
@@ -655,14 +819,343 @@ async function cargarOverview() {
   }
 }
 
+function moverMes(mes, delta) {
+  const [año, numero] = mes.split('-').map(Number);
+  const fecha = new Date(Date.UTC(año, numero - 1 + delta, 1));
+  return `${fecha.getUTCFullYear()}-${String(fecha.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function renderActivityScopes() {
+  el.activityScopePills.innerHTML = [
+    `<button type="button" data-activity-scope="global" class="${state.activityScope === 'global' ? 'active' : ''}">All</button>`,
+    ...state.usuarios.map((u) => `<button type="button" data-activity-scope="individual" data-activity-user="${u.id}" class="${state.activityScope === 'individual' && state.activityUserId === u.id ? 'active' : ''}">${escaparHTML(u.nombre_display)}</button>`)
+  ].join('');
+}
+
+async function cargarActividad() {
+  el.activitySection.hidden = false;
+  el.activityLoading.hidden = false;
+  el.activityError.hidden = true;
+  el.activityContent.hidden = true;
+  renderActivityScopes();
+  try {
+    const params = new URLSearchParams();
+    if (state.activityMonth) params.set('month', state.activityMonth);
+    if (state.activityScope === 'individual' && state.activityUserId) {
+      params.set('scope', 'individual');
+      params.set('usuario_id', state.activityUserId);
+    }
+    const response = await fetch(`/api/activity?${params}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    state.activityData = data;
+    state.activityMonth = data.mes;
+    state.activityTimezone = data.zona_horaria || 'America/Panama';
+    renderActividad(data);
+    el.activityLoading.hidden = true;
+    el.activityContent.hidden = false;
+  } catch (error) {
+    console.error('Error consultando actividad:', error);
+    el.activityLoading.hidden = true;
+    el.activityError.hidden = false;
+  }
+}
+
+function renderActividad(data) {
+  const [año, mes] = data.mes.split('-').map(Number);
+  el.activityMonthLabel.textContent = new Intl.DateTimeFormat('es-PA', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(año, mes - 1, 1)));
+  const rachasPorUsuario = new Map(data.rachas.map((racha) => [racha.usuario_id, racha]));
+  el.activityStats.innerHTML = state.usuarios.filter((u) => data.usuario_id == null || u.id === data.usuario_id).map((u) => {
+    const r = rachasPorUsuario.get(u.id) || { nombre_display: u.nombre_display, racha_actual: 0, mejor_racha: 0, dias_activos: 0 };
+    return `
+    <article class="activity-stat-card"><span class="activity-stat-name">${escaparHTML(r.nombre_display)}</span><strong>${r.racha_actual}<small> días</small></strong><span class="activity-stat-caption">racha actual · récord ${r.mejor_racha} días · ${r.dias_activos} días activos registrados</span></article>`;
+  }).join('');
+  renderMapaActividad(data.mapa_horario);
+  renderCalendarioActividad(data.calendario);
+  renderDescubrimientos(data.descubrimientos);
+  renderDuo(data.duo);
+}
+
+function renderMapaActividad(filas) {
+  const valores = new Map(filas.map((f) => [`${f.dia_semana}-${f.hora}`, Number(f.reproducciones)]));
+  const maximo = Math.max(1, ...valores.values());
+  const dias = [{ id: 1, nombre: 'Lun' }, { id: 2, nombre: 'Mar' }, { id: 3, nombre: 'Mié' }, { id: 4, nombre: 'Jue' }, { id: 5, nombre: 'Vie' }, { id: 6, nombre: 'Sáb' }, { id: 0, nombre: 'Dom' }];
+  const marcas = Array.from({ length: 24 }, (_, hora) => `<span>${String(hora).padStart(2, '0')}</span>`).join('');
+  const filasHTML = dias.map((dia) => `<div class="heatmap-row"><span class="heatmap-day">${dia.nombre}</span>${Array.from({ length: 24 }, (_, hora) => {
+    const count = valores.get(`${dia.id}-${hora}`) || 0;
+    const level = count ? Math.min(4, Math.ceil((count / maximo) * 4)) : 0;
+    return `<i class="heat-cell level-${level}" title="${dia.nombre}, ${String(hora).padStart(2, '0')}:00 · ${count} reproducciones" aria-label="${dia.nombre}, ${hora}:00, ${count} reproducciones"></i>`;
+  }).join('')}</div>`).join('');
+  el.activityHeatmap.innerHTML = `<div class="heatmap-hours"><span></span>${marcas}</div>${filasHTML}`;
+}
+
+function renderCalendarioActividad(filas) {
+  const [año, mes] = state.activityMonth.split('-').map(Number);
+  const primerDia = new Date(Date.UTC(año, mes - 1, 1));
+  const offset = (primerDia.getUTCDay() + 6) % 7;
+  const mapa = new Map(filas.map((f) => [f.fecha, f]));
+  const encabezados = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((dia) => `<span class="calendar-weekday">${dia}</span>`).join('');
+  const huecos = Array.from({ length: offset }, () => '<span class="calendar-blank"></span>').join('');
+  const dias = filas.map((dia) => `<button type="button" class="calendar-day${dia.reproducciones ? ' has-plays' : ''}" data-day="${dia.fecha}" aria-label="${dia.fecha}: ${dia.reproducciones} reproducciones"><span>${Number(dia.fecha.slice(-2))}</span>${dia.reproducciones ? `<i style="--day-intensity:${Math.min(100, Math.round(Math.log1p(dia.reproducciones) / 5 * 100))}%"></i>` : ''}</button>`).join('');
+  el.activityCalendar.innerHTML = encabezados + huecos + dias;
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: state.activityTimezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const inicial = mapa.get(hoy) || filas.find((dia) => dia.reproducciones > 0) || filas[0];
+  el.activityCalendar.querySelectorAll('.calendar-day').forEach((button) => button.classList.toggle('selected', button.dataset.day === inicial?.fecha));
+  mostrarDetalleDia(inicial);
+}
+
+function mostrarDetalleDia(dia) {
+  if (!dia) return;
+  const fecha = new Intl.DateTimeFormat('es-PA', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${dia.fecha}T12:00:00Z`));
+  el.activityDayDetail.innerHTML = `<strong>${escaparHTML(fecha)}</strong><span>${dia.reproducciones} reproducciones</span>${dia.cancion_destacada ? `<p>Más escuchada: <b>${escaparHTML(dia.cancion_destacada)}</b>${dia.artistas_destacados ? ` · ${escaparHTML(dia.artistas_destacados)}` : ''}</p>` : '<p>Sin reproducciones registradas este día.</p>'}`;
+}
+
+function renderDescubrimientos(items) {
+  el.activityDiscoveries.innerHTML = items.map((u) => `<div class="discovery-person"><h4>${escaparHTML(u.nombre_display)}</h4><p><b>${u.canciones.total || 0}</b> canciones y <b>${u.artistas.total || 0}</b> artistas nuevos registrados este mes</p><ul>${[...u.canciones.recientes.map((n) => ({ ...n, tipo: 'Canción' })), ...u.artistas.recientes.slice(0, 3).map((n) => ({ ...n, tipo: 'Artista' }))].slice(0, 5).map((n) => `<li><span>${escaparHTML(n.tipo)} · ${escaparHTML(n.nombre)}${n.artista ? ` — ${escaparHTML(n.artista)}` : ''}</span><time>${escaparHTML(n.fecha)}</time></li>`).join('') || '<li class="muted-row">No hay primeros registros este mes.</li>'}</ul></div>`).join('') || '<p class="activity-empty">No hay cuentas para mostrar.</p>';
+}
+
+function renderDuo(duo) {
+  el.activityDuoPanel.hidden = !duo;
+  if (!duo) return;
+  const destacado = duo.cancion_compartida_destacada;
+  el.activityDuo.innerHTML = `<div class="duo-metrics"><div><strong>${duo.dias_compartidos || 0}</strong><span>días escuchando ambos</span></div><div><strong>${duo.canciones_compartidas || 0}</strong><span>canciones compartidas</span></div><div><strong>${duo.artistas_compartidos || 0}</strong><span>artistas compartidos</span></div></div>${destacado ? `<div class="shared-track"><img src="${imagenSegura(destacado.portada)}" alt=""/><div><b>${escaparHTML(destacado.nombre)}</b><span>${escaparHTML(destacado.artistas)}</span><small>${destacado.reproducciones_usuario_1 + destacado.reproducciones_usuario_2} reproducciones entre ambos</small></div></div>` : '<p class="activity-empty">Aún no hay canciones escuchadas por ambas cuentas este mes.</p>'}<p class="presentation-note">Primeros registros de canciones ya escuchadas por la otra cuenta: ${duo.presentaciones.map((p) => `${escaparHTML(p.nombre_display)} ${p.total}`).join(' · ')}</p>`;
+}
+
+const CLAVE_COLORES_PERFIL = 'spotify-duo-profile-colors';
+let solicitudPerfil = 0;
+
+function coloresPerfilGuardados() {
+  try { return JSON.parse(localStorage.getItem(CLAVE_COLORES_PERFIL) || '{}'); }
+  catch { return {}; }
+}
+
+function aplicarColorPerfil(color = '#ff5f6d') {
+  state.profileColor = /^#[0-9a-f]{6}$/i.test(color) ? color : '#ff5f6d';
+  document.documentElement.style.setProperty('--accent-fixed', state.profileColor);
+  const rgb = state.profileColor.slice(1).match(/.{2}/g).map((parte) => parseInt(parte, 16));
+  const luminosidad = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+  document.documentElement.style.setProperty('--accent-ink', luminosidad >= 145 ? '#101116' : '#ffffff');
+  el.profileCustomColor.value = state.profileColor;
+  el.profileColors.querySelectorAll('[data-color]').forEach((button) => {
+    button.classList.toggle('selected', button.dataset.color.toLowerCase() === state.profileColor.toLowerCase());
+  });
+}
+
+function cargarColorPerfilUsuario() {
+  const colores = coloresPerfilGuardados();
+  aplicarColorPerfil(colores[state.profileUserId] || '#ff5f6d');
+}
+
+function renderUsuariosPerfil() {
+  el.profileUsers.innerHTML = state.usuarios.map((usuario) => `<button type="button" data-profile-user="${usuario.id}" class="${usuario.id === state.profileUserId ? 'active' : ''}">${escaparHTML(usuario.nombre_display)}</button>`).join('');
+}
+
+async function pedirRankingPersonal(usuarioId, tipo, dias, limite = 5) {
+  const params = new URLSearchParams({ scope: 'individual', usuario_id: usuarioId, tipo, dias, limit: limite, offset: 0 });
+  const response = await fetch(`/api/charts?${params}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+async function cargarPerfil() {
+  if (!state.profileUserId) return;
+  const solicitud = ++solicitudPerfil;
+  const usuario = state.usuarios.find((item) => item.id === state.profileUserId);
+  if (!usuario) return;
+  el.profileName.textContent = `El perfil musical de ${usuario.nombre_display}`;
+  renderUsuariosPerfil();
+  cargarColorPerfilUsuario();
+  el.profileLoading.hidden = false;
+  el.profileError.hidden = true;
+  el.profileContent.hidden = true;
+  try {
+    const mesActual = await fetch('/api/activity?scope=individual&usuario_id=' + encodeURIComponent(state.profileUserId));
+    if (!mesActual.ok) throw new Error(`HTTP ${mesActual.status}`);
+    const actividad = await mesActual.json();
+    const [cancionesAll, artistasAll, albumesAll, canciones30, artistas30] = await Promise.all([
+      pedirRankingPersonal(state.profileUserId, 'canciones', DIAS_TODO_EL_TIEMPO),
+      pedirRankingPersonal(state.profileUserId, 'artistas', DIAS_TODO_EL_TIEMPO),
+      pedirRankingPersonal(state.profileUserId, 'albumes', DIAS_TODO_EL_TIEMPO),
+      pedirRankingPersonal(state.profileUserId, 'canciones', 30, 1),
+      pedirRankingPersonal(state.profileUserId, 'artistas', 30, 1)
+    ]);
+    if (solicitud !== solicitudPerfil) return;
+    const datos = { usuario, actividad, cancionesAll, artistasAll, albumesAll, canciones30: canciones30[0] || null, artistas30: artistas30[0] || null };
+    state.profileData = datos;
+    renderPerfil(datos);
+    el.profileLoading.hidden = true;
+    el.profileContent.hidden = false;
+  } catch (error) {
+    if (solicitud !== solicitudPerfil) return;
+    console.error('Error consultando perfil:', error);
+    el.profileLoading.hidden = true;
+    el.profileError.hidden = false;
+  }
+}
+
+function renderListaPersonal(elemento, filas, avatar = false) {
+  elemento.innerHTML = filas.length ? filas.slice(0, 5).map((fila, indice) => `<div class="profile-top-row"><span class="profile-rank mono">${String(indice + 1).padStart(2, '0')}</span><img class="${avatar ? 'avatar' : ''}" src="${imagenSegura(fila.portada)}" alt="" loading="lazy"><div><b>${escaparHTML(fila.nombre)}</b>${fila.subtitulo ? `<span>${escaparHTML(fila.subtitulo)}</span>` : ''}</div><small>${Number(fila.veces_escuchada) || 0} plays</small></div>`).join('') : '<p class="activity-empty">Todavía no hay suficiente historial.</p>';
+}
+
+function etiquetaCambioPersonal(item) {
+  if (!item) return 'Sin escuchas en los últimos 30 días';
+  if (item.cambio == null) return 'Nuevo en tu top de 30 días';
+  if (item.cambio > 0) return `Subió ${item.cambio} ${item.cambio === 1 ? 'posición' : 'posiciones'} en tu top personal`;
+  if (item.cambio < 0) return `Bajó ${Math.abs(item.cambio)} ${Math.abs(item.cambio) === 1 ? 'posición' : 'posiciones'} en tu top personal`;
+  return 'Mantiene su posición en tu top personal';
+}
+
+function renderPerfil(datos) {
+  const racha = datos.actividad.rachas.find((item) => item.usuario_id === datos.usuario.id) || { racha_actual: 0, mejor_racha: 0, dias_activos: 0 };
+  const descubrimiento = datos.actividad.descubrimientos.find((item) => item.usuario_id === datos.usuario.id) || { canciones: { total: 0 }, artistas: { total: 0 } };
+  el.profileStats.innerHTML = `<article class="profile-stat-card"><span>Racha actual</span><strong>${racha.racha_actual}<small> días</small></strong><em>Récord personal: ${racha.mejor_racha} días</em></article><article class="profile-stat-card"><span>Días con música</span><strong>${racha.dias_activos}</strong><em>En todo tu historial registrado</em></article><article class="profile-stat-card"><span>Nuevos registros este mes</span><strong>${descubrimiento.canciones.total + descubrimiento.artistas.total}</strong><em>${descubrimiento.canciones.total} canciones · ${descubrimiento.artistas.total} artistas</em></article>`;
+  renderListaPersonal(el.profileTopSongs, datos.cancionesAll);
+  renderListaPersonal(el.profileTopArtists, datos.artistasAll, true);
+  renderListaPersonal(el.profileTopAlbums, datos.albumesAll);
+  const cancion = datos.canciones30;
+  const artista = datos.artistas30;
+  const novedades = [...(descubrimiento.canciones.recientes || []).slice(0, 2).map((item) => item.nombre), ...(descubrimiento.artistas.recientes || []).slice(0, 2).map((item) => item.nombre)];
+  el.profileRecapPreview.innerHTML = `<div class="recap-cover"><img src="${imagenSegura(cancion?.portada)}" alt="" crossorigin="anonymous"><span>YOUR SOUND, YOUR STORY</span></div><div class="recap-details"><span class="mono">${escaparHTML(datos.usuario.nombre_display)} · ${escaparHTML(datos.actividad.mes)}</span><h4>Tu música<br>en este momento.</h4><div class="recap-feature"><small>CANCIÓN MÁS ESCUCHADA · 30 DÍAS</small><b>${escaparHTML(cancion?.nombre || 'Tu próxima favorita está por llegar')}</b><span>${escaparHTML(cancion?.subtitulo || 'Sigue escuchando para crear tu recap')}</span><em>${cancion ? `${cancion.veces_escuchada} reproducciones · ` : ''}${etiquetaCambioPersonal(cancion)}</em></div><div class="recap-feature"><small>ARTISTA DESTACADO · 30 DÍAS</small><b>${escaparHTML(artista?.nombre || 'Aún sin artista destacado')}</b><em>${artista ? `${artista.veces_escuchada} reproducciones · ` : ''}${etiquetaCambioPersonal(artista)}</em></div><div class="recap-footer"><span>Racha actual <b>${racha.racha_actual} días</b></span><span>Primeros registros <b>${novedades.length ? novedades.map(escaparHTML).join(' · ') : 'Este mes'}</b></span></div></div>`;
+}
+
+async function cargarImagenRecap(url) {
+  if (!url) return null;
+  try {
+    const segura = new URL(url, window.location.origin);
+    if (!['https:', 'http:'].includes(segura.protocol)) return null;
+    url = segura.href;
+  } catch { return null; }
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = url;
+  });
+}
+
+async function descargarRecap() {
+  const datos = state.profileData;
+  if (!datos) return;
+  el.profileDownload.disabled = true;
+  el.profileRecapStatus.textContent = 'Preparando tu imagen…';
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1350;
+    const ctx = canvas.getContext('2d');
+    const accent = state.profileColor;
+    const accentInk = getComputedStyle(document.documentElement).getPropertyValue('--accent-ink').trim() || '#101116';
+    const gradient = ctx.createLinearGradient(0, 0, 1080, 1350);
+    gradient.addColorStop(0, '#171821');
+    gradient.addColorStop(1, '#090a0e');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = accent;
+    ctx.globalAlpha = 0.14;
+    ctx.beginPath(); ctx.arc(930, 120, 310, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    const portada = await cargarImagenRecap(datos.canciones30?.portada);
+    if (portada) {
+      ctx.save(); ctx.beginPath(); ctx.roundRect(720, 110, 250, 250, 28); ctx.clip(); ctx.drawImage(portada, 720, 110, 250, 250); ctx.restore();
+    } else {
+      ctx.fillStyle = accent; ctx.globalAlpha = .18; ctx.beginPath(); ctx.roundRect(720, 110, 250, 250, 28); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.fillStyle = accent; ctx.font = '700 115px Manrope, sans-serif'; ctx.fillText('♪', 790, 280);
+    }
+    const text = (value, x, y, size, color, weight = 500) => { ctx.fillStyle = color; ctx.font = `${weight} ${size}px Manrope, sans-serif`; ctx.fillText(value, x, y, 850); };
+    text('DUO CHARTS  /  YOUR PROFILE', 78, 110, 23, accent, 700);
+    text(datos.usuario.nombre_display, 78, 215, 62, '#f6f6f8', 800);
+    text(`YOUR LISTENING RECAP · ${datos.actividad.mes}`, 78, 270, 22, '#a2a3ad', 500);
+    ctx.fillStyle = '#ffffff'; ctx.globalAlpha = .08; ctx.beginPath(); ctx.roundRect(70, 430, 940, 500, 28); ctx.fill(); ctx.globalAlpha = 1;
+    text('TU CANCIÓN DE LOS ÚLTIMOS 30 DÍAS', 110, 500, 20, accent, 700);
+    text(datos.canciones30?.nombre || 'Sigue escuchando', 110, 580, 40, '#f6f6f8', 800);
+    text(datos.canciones30?.subtitulo || 'Tu próxima canción favorita', 110, 625, 23, '#a2a3ad');
+    text(`${datos.canciones30?.veces_escuchada || 0} reproducciones · ${etiquetaCambioPersonal(datos.canciones30)}`, 110, 685, 20, '#f6f6f8');
+    text('ARTISTA DESTACADO', 110, 770, 20, accent, 700);
+    text(datos.artistas30?.nombre || 'Por descubrir', 110, 825, 36, '#f6f6f8', 800);
+    text(`${datos.artistas30?.veces_escuchada || 0} reproducciones · ${etiquetaCambioPersonal(datos.artistas30)}`, 110, 870, 20, '#a2a3ad');
+    const racha = datos.actividad.rachas.find((item) => item.usuario_id === datos.usuario.id)?.racha_actual || 0;
+    ctx.fillStyle = accent; ctx.beginPath(); ctx.roundRect(70, 990, 940, 245, 28); ctx.fill();
+    text(`${racha} días`, 110, 1080, 54, accentInk, 800);
+    text('de racha actual', 110, 1125, 22, accentInk, 600);
+    const descubrimiento = datos.actividad.descubrimientos.find((item) => item.usuario_id === datos.usuario.id);
+    const totalNuevos = (descubrimiento?.canciones.total || 0) + (descubrimiento?.artistas.total || 0);
+    text(`${totalNuevos} primeros registros este mes`, 110, 1165, 21, accentInk, 600);
+    const recientes = [...(descubrimiento?.canciones.recientes || []).slice(0, 2).map((item) => item.nombre), ...(descubrimiento?.artistas.recientes || []).slice(0, 2).map((item) => item.nombre)].join(' · ');
+    if (recientes) text(recientes, 110, 1190, 16, accentInk, 500);
+    text('Tu música. Tu ritmo.', 78, 1280, 22, '#a2a3ad', 600);
+    const enlace = document.createElement('a');
+    enlace.download = `duo-charts-recap-${datos.usuario.nombre_display.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${datos.actividad.mes}.png`;
+    enlace.href = canvas.toDataURL('image/png');
+    enlace.click();
+    el.profileRecapStatus.textContent = 'Tu recap se descargó como PNG.';
+  } catch (error) {
+    console.error('No se pudo exportar el recap:', error);
+    el.profileRecapStatus.textContent = 'No se pudo crear la imagen. Inténtalo de nuevo.';
+  } finally {
+    el.profileDownload.disabled = false;
+  }
+}
+
+el.profileUsers.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-profile-user]');
+  if (!button) return;
+  state.profileUserId = Number(button.dataset.profileUser);
+  cargarPerfil();
+});
+el.profileColors.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-color]');
+  if (!button) return;
+  aplicarColorPerfil(button.dataset.color);
+  const colores = coloresPerfilGuardados(); colores[state.profileUserId] = state.profileColor;
+  try { localStorage.setItem(CLAVE_COLORES_PERFIL, JSON.stringify(colores)); } catch { /* La selección visual sigue activa esta sesión. */ }
+});
+el.profileCustomColor.addEventListener('input', () => {
+  aplicarColorPerfil(el.profileCustomColor.value);
+  const colores = coloresPerfilGuardados(); colores[state.profileUserId] = state.profileColor;
+  try { localStorage.setItem(CLAVE_COLORES_PERFIL, JSON.stringify(colores)); } catch { /* La selección visual sigue activa esta sesión. */ }
+});
+el.profileDownload.addEventListener('click', descargarRecap);
+document.getElementById('profile-retry').addEventListener('click', cargarPerfil);
+
+el.activityScopePills.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-activity-scope]');
+  if (!button) return;
+  state.activityScope = button.dataset.activityScope;
+  state.activityUserId = button.dataset.activityUser ? Number(button.dataset.activityUser) : null;
+  cargarActividad();
+});
+document.getElementById('activity-prev').addEventListener('click', () => { state.activityMonth = moverMes(state.activityMonth, -1); cargarActividad(); });
+document.getElementById('activity-next').addEventListener('click', () => { state.activityMonth = moverMes(state.activityMonth, 1); cargarActividad(); });
+document.getElementById('activity-retry').addEventListener('click', cargarActividad);
+el.activityCalendar.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-day]');
+  if (!button || !state.activityData) return;
+  const dia = state.activityData.calendario.find((item) => item.fecha === button.dataset.day);
+  el.activityCalendar.querySelectorAll('.calendar-day').forEach((item) => item.classList.toggle('selected', item === button));
+  mostrarDetalleDia(dia);
+});
+
 // ------------------------------------------------------------
 // Navegación entre vistas
 // ------------------------------------------------------------
 function switchView(view) {
   state.view = view;
-  el.mainNav.querySelectorAll('.nav-link').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  el.searchToggle.hidden = view === 'overview';
+  el.mainNav.querySelectorAll('.nav-link').forEach((b) => {
+    const active = b.dataset.view === view;
+    b.classList.toggle('active', active);
+    if (active) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  el.searchToggle.hidden = view === 'overview' || view === 'profile';
+  const placeholders = {
+    songs: 'Search songs, artists, or albums…',
+    artists: 'Search artists…',
+    albums: 'Search albums or artists…'
+  };
+  if (placeholders[view]) el.searchInput.placeholder = placeholders[view];
   cerrarBusqueda(false);
+  guardarPreferencias();
 
   if (view === 'overview') {
     el.nowPlayingSection.hidden = false;
@@ -670,13 +1163,26 @@ function switchView(view) {
     el.listSection.hidden = true;
     el.matchSection.hidden = false;
     el.insightsSection.hidden = false;
+    el.activitySection.hidden = false;
+    el.profileSection.hidden = true;
     cargarOverview();
+  } else if (view === 'profile') {
+    el.nowPlayingSection.hidden = true;
+    el.controlsSection.hidden = true;
+    el.listSection.hidden = true;
+    el.matchSection.hidden = true;
+    el.insightsSection.hidden = true;
+    el.activitySection.hidden = true;
+    el.profileSection.hidden = false;
+    cargarPerfil();
   } else {
     el.nowPlayingSection.hidden = true;
     el.controlsSection.hidden = false;
     el.listSection.hidden = false;
     el.matchSection.hidden = true;
     el.insightsSection.hidden = true;
+    el.activitySection.hidden = true;
+    el.profileSection.hidden = true;
     state.tipo = VISTA_A_TIPO[view];
     el.colTrackLabel.textContent = TITULOS_POR_VISTA[view].label;
     actualizarChart(true);
@@ -695,6 +1201,7 @@ el.periodPills.querySelectorAll('button').forEach((btn) => {
     el.periodPills.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     state.dias = btn.dataset.dias === 'all' ? 'all' : parseInt(btn.dataset.dias, 10);
+    guardarPreferencias();
     actualizarChart(true);
   });
 });
@@ -705,7 +1212,12 @@ el.periodPills.querySelectorAll('button').forEach((btn) => {
 async function cargarUsuarios() {
   try {
     const resp = await fetch('/api/usuarios');
-    state.usuarios = await resp.json();
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const usuarios = await resp.json();
+    if (!Array.isArray(usuarios)) throw new Error('Invalid accounts response');
+    state.usuarios = usuarios;
+    state.profileUserId = usuarios[0]?.id || null;
+    cargarColorPerfilUsuario();
     renderScopePills();
   } catch (err) {
     console.error('Error consultando usuarios:', err);
@@ -713,16 +1225,58 @@ async function cargarUsuarios() {
 }
 
 function renderScopePills() {
+  el.scopePills.hidden = false;
   const botones = [
     `<button data-scope="global" class="${state.scope === 'global' ? 'active' : ''}">All</button>`,
     ...state.usuarios.map(
       (u) =>
         `<button data-scope="individual" data-usuario="${u.id}" class="${
           state.scope === 'individual' && state.usuarioId === u.id ? 'active' : ''
-        }">${u.nombre_display}</button>`
+        }">${escaparHTML(u.nombre_display)}</button>`
     )
   ];
   el.scopePills.innerHTML = botones.join('');
+}
+
+const CLAVE_PREFERENCIAS = 'spotify-duo-dashboard-preferences';
+
+function guardarPreferencias() {
+  try {
+    window.localStorage.setItem(CLAVE_PREFERENCIAS, JSON.stringify({
+      view: state.view,
+      dias: state.dias,
+      scope: state.scope,
+      usuarioId: state.usuarioId
+    }));
+  } catch (err) {
+    // El almacenamiento local puede estar deshabilitado; el dashboard sigue funcionando.
+    console.warn('No se pudieron guardar las preferencias locales.');
+  }
+}
+
+function restaurarPreferencias() {
+  try {
+    const guardadas = JSON.parse(window.localStorage.getItem(CLAVE_PREFERENCIAS) || 'null');
+    if (!guardadas || typeof guardadas !== 'object') return;
+
+    if (['overview', 'songs', 'artists', 'albums', 'profile'].includes(guardadas.view)) {
+      state.view = guardadas.view;
+    }
+    if ([1, 7, 30, 'all'].includes(guardadas.dias)) state.dias = guardadas.dias;
+    const usuario = state.usuarios.find((u) => u.id === Number(guardadas.usuarioId));
+    if (guardadas.scope === 'individual' && usuario) {
+      state.scope = 'individual';
+      state.usuarioId = usuario.id;
+    }
+
+    el.periodPills.querySelectorAll('button').forEach((boton) => {
+      const diasBoton = boton.dataset.dias === 'all' ? 'all' : Number(boton.dataset.dias);
+      boton.classList.toggle('active', diasBoton === state.dias);
+    });
+    renderScopePills();
+  } catch (err) {
+    console.warn('Se ignoraron las preferencias locales guardadas.');
+  }
 }
 
 el.scopePills.addEventListener('click', (e) => {
@@ -732,6 +1286,7 @@ el.scopePills.addEventListener('click', (e) => {
   btn.classList.add('active');
   state.scope = btn.dataset.scope;
   state.usuarioId = btn.dataset.usuario ? parseInt(btn.dataset.usuario, 10) : null;
+  guardarPreferencias();
   actualizarChart(true);
 });
 
@@ -767,8 +1322,10 @@ el.searchInput.addEventListener('input', () => {
 // ------------------------------------------------------------
 async function init() {
   await cargarUsuarios();
+  restaurarPreferencias();
   actualizarTicker();
-  cargarOverview();
+  if (state.view === 'overview') cargarOverview();
+  else switchView(state.view);
 
   setInterval(actualizarTicker, 20 * 1000);
   setInterval(actualizarBarrasDeProgreso, 1000);

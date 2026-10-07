@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>DUO CHARTS // Spotify Duo</title>
+<meta name="theme-color" content="#0b0b0f" />
+<meta name="description" content="Charts compartidos e historial musical de Spotify Duo." />
 <link rel="icon" type="image/svg+xml" href="/icon.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -32,10 +34,11 @@
     </div>
 
     <nav class="main-nav" id="main-nav">
-      <button class="nav-link active" data-view="overview">Overview</button>
+      <button class="nav-link active" data-view="overview" aria-current="page">Overview</button>
       <button class="nav-link" data-view="songs">Songs</button>
       <button class="nav-link" data-view="artists">Artists</button>
       <button class="nav-link" data-view="albums">Albums</button>
+      <button class="nav-link" data-view="profile">Perfil</button>
     </nav>
 
     <div class="topbar-actions">
@@ -47,7 +50,7 @@
 
   <div class="search-overlay" id="search-overlay" hidden>
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <input type="search" id="search-input" class="search-input-lg" placeholder="Buscar por artista…" autocomplete="off" />
+    <input type="search" id="search-input" class="search-input-lg" placeholder="Buscar canción, artista o álbum…" autocomplete="off" />
     <button class="icon-btn" id="search-close" aria-label="Cerrar búsqueda">✕</button>
   </div>
 
@@ -167,6 +170,78 @@
       </div>
     </section>
 
+    <section class="activity-section" id="activity-section" aria-labelledby="activity-title" hidden>
+      <div class="activity-heading">
+        <div>
+          <span class="activity-kicker mono">LISTENING JOURNAL</span>
+          <h2 id="activity-title">Your duo, in rhythm</h2>
+          <p>Un resumen de las escuchas registradas en la zona horaria de la app.</p>
+        </div>
+        <div class="activity-month-controls">
+          <button class="activity-nav" id="activity-prev" type="button" aria-label="Mes anterior">←</button>
+          <strong id="activity-month-label">—</strong>
+          <button class="activity-nav" id="activity-next" type="button" aria-label="Mes siguiente">→</button>
+        </div>
+      </div>
+      <div class="activity-toolbar">
+        <div class="pills" id="activity-scope-pills" aria-label="Filtrar actividad"></div>
+      </div>
+      <p class="activity-state" id="activity-loading" role="status" aria-live="polite">Calculando actividad…</p>
+      <p class="activity-state" id="activity-error" role="alert" hidden>No se pudieron cargar las estadísticas. <button id="activity-retry" type="button">Reintentar</button></p>
+      <div id="activity-content" hidden>
+        <div class="activity-stats" id="activity-stats"></div>
+        <div class="activity-panels">
+          <article class="activity-panel heatmap-panel">
+            <div class="activity-panel-heading"><div><h3>Mapa de escucha</h3><p>Cuándo suelen escuchar durante este mes</p></div><span class="mono activity-unit">REPRODUCCIONES</span></div>
+            <div class="heatmap-wrap" id="activity-heatmap"></div>
+            <div class="heatmap-legend"><span>Menos</span><i></i><i></i><i></i><i></i><span>Más</span></div>
+          </article>
+          <article class="activity-panel calendar-panel">
+            <div class="activity-panel-heading"><div><h3>Calendario</h3><p>Selecciona un día para ver el detalle</p></div></div>
+            <div class="activity-calendar" id="activity-calendar"></div>
+            <div class="calendar-detail" id="activity-day-detail" aria-live="polite"></div>
+          </article>
+        </div>
+        <div class="activity-panels activity-lower-panels">
+          <article class="activity-panel discovery-panel"><div class="activity-panel-heading"><div><h3>Descubrimientos</h3><p>Primer registro de una canción o artista en el historial</p></div></div><div id="activity-discoveries"></div></article>
+          <article class="activity-panel duo-panel" id="activity-duo-panel"><div class="activity-panel-heading"><div><h3>Estadísticas del dúo</h3><p>Coincidencias en el mes seleccionado</p></div></div><div id="activity-duo"></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="profile-section" id="profile-section" hidden>
+      <div class="profile-heading">
+        <div><span class="activity-kicker mono">YOUR SPACE</span><h2 id="profile-name">Tu perfil musical</h2><p>Tu historia de escucha, tus favoritos y tu estilo.</p></div>
+        <div class="pills" id="profile-users" aria-label="Seleccionar perfil"></div>
+      </div>
+      <div class="profile-customizer activity-panel">
+        <div><h3>Tu color</h3><p>Se guarda en este navegador y puedes cambiarlo cuando quieras.</p></div>
+        <div class="profile-colors" id="profile-colors" aria-label="Color de acento">
+          <button type="button" data-color="#ff5f6d" aria-label="Rojo original" title="Rojo original"></button>
+          <button type="button" data-color="#f4a340" aria-label="Ámbar" title="Ámbar"></button>
+          <button type="button" data-color="#a78bfa" aria-label="Violeta" title="Violeta"></button>
+          <button type="button" data-color="#4ea1ff" aria-label="Azul" title="Azul"></button>
+          <button type="button" data-color="#43c99a" aria-label="Verde" title="Verde"></button>
+          <label class="custom-color" title="Elegir otro color"><input id="profile-custom-color" type="color" value="#ff5f6d" aria-label="Elegir color personalizado"><span>＋</span></label>
+        </div>
+      </div>
+      <p class="profile-state" id="profile-loading" role="status">Preparando tu perfil…</p>
+      <p class="profile-state" id="profile-error" role="alert" hidden>No pudimos cargar tu perfil. <button id="profile-retry" type="button">Reintentar</button></p>
+      <div id="profile-content" hidden>
+        <div class="profile-stats" id="profile-stats"></div>
+        <div class="profile-top-grid">
+          <article class="activity-panel"><div class="activity-panel-heading"><div><h3>Tus canciones de siempre</h3><p>Top de todo tu historial registrado</p></div></div><div id="profile-top-songs" class="profile-top-list"></div></article>
+          <article class="activity-panel"><div class="activity-panel-heading"><div><h3>Tus artistas favoritos</h3><p>Top de todo tu historial registrado</p></div></div><div id="profile-top-artists" class="profile-top-list"></div></article>
+          <article class="activity-panel"><div class="activity-panel-heading"><div><h3>Tus álbumes favoritos</h3><p>Top de todo tu historial registrado</p></div></div><div id="profile-top-albums" class="profile-top-list"></div></article>
+        </div>
+        <article class="profile-recap-panel activity-panel">
+          <div class="activity-panel-heading"><div><h3>Tu recap personal</h3><p>Una tarjeta hecha con tus escuchas recientes, sin datos de la otra cuenta.</p></div><button class="export-btn" id="profile-download" type="button">Descargar imagen</button></div>
+          <div class="recap-card" id="profile-recap-preview"></div>
+          <p class="recap-status" id="profile-recap-status" role="status" aria-live="polite"></p>
+        </article>
+      </div>
+    </section>
+
     <section class="controls-section" id="controls-section" hidden>
       <div class="scope-period-row">
         <div class="pills" id="period-pills">
@@ -175,8 +250,15 @@
           <button data-dias="30">30D</button>
           <button data-dias="all">All</button>
         </div>
-        <div class="pills" id="scope-pills">
+        <div class="pills" id="scope-pills" hidden>
           <!-- generado por JS: All + una pill por usuario -->
+        </div>
+        <div class="chart-actions">
+          <span class="export-status" id="export-status" role="status" aria-live="polite"></span>
+          <button class="export-btn" id="export-chart-btn" type="button">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 17v3h14v-3"/></svg>
+            <span>Export CSV</span>
+          </button>
         </div>
       </div>
     </section>
@@ -198,10 +280,11 @@
       </ol>
 
       <button class="load-more-btn" id="load-more-btn" hidden>Load more</button>
-      <p class="loading-state" id="loading-state" hidden>Loading…</p>
+      <p class="loading-state" id="loading-state" role="status" aria-live="polite" hidden>Loading…</p>
       <p class="empty-state" id="empty-state" hidden>
         Not enough data yet for this window. Keep listening and the chart will build itself.
       </p>
+      <button class="retry-chart-btn" id="retry-chart-btn" type="button" hidden>Try again</button>
     </section>
 
   </main>
