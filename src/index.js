@@ -6,6 +6,7 @@ const express = require('express');
 const { PORT, INTERVALO_CURRENTLY_MS, INTERVALO_HISTORIAL_MS } = require('./config');
 const { router: authRouter } = require('./spotifyAuth');
 const chartsApiRouter = require('./chartsApi');
+const { router: integrationsApiRouter } = require('./integrationsApi');
 const db = require('./db');
 const { describirError } = require('./errorUtils');
 const {
@@ -30,6 +31,7 @@ process.on('uncaughtException', (err) => {
 
 app.use(authRouter);
 app.use('/api', chartsApiRouter);
+app.use('/api/integrations', integrationsApiRouter);
 // ------------------------------------------------------------
 // GET /health — para el monitor de uptime. Chequea que el servidor
 // responda Y que la base de datos esté realmente accesible (no solo

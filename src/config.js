@@ -24,5 +24,8 @@ module.exports = {
   // en producción; mientras tanto es overrideable con la env var
   // ZONA_HORARIA sin tocar código.
   // ------------------------------------------------------------
-  ZONA_HORARIA: process.env.ZONA_HORARIA || 'America/Panama'
+  ZONA_HORARIA: process.env.ZONA_HORARIA || 'America/Panama',
+
+  // Token que protege /api/integrations (se define en Railway y en tu .env local)
+  INTEGRATION_TOKEN: process.env.INTEGRATION_TOKEN || process.env.DUO_CHARTS_INTEGRATION_TOKEN
 };
