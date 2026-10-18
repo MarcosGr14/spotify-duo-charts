@@ -160,8 +160,61 @@ router.get('/daily-artist-streams', async (req, res) => {
   }
 });
 
+// One statement gives accounts, global totals and artist credits a consistent snapshot.
+// Global totals count listening events directly, never the expanded artist join.
+const SQL_LIFETIME_ARTIST_STREAMS = `
+  WITH cuentas AS (
+    SELECT id, spotify_user_id, nombre_display, necesita_reconexion,
+           ROW_NUMBER() OVER (ORDER BY id) AS pos
+    FROM usuarios_spotify ORDER BY id LIMIT 2
+  ), plays AS (
+    SELECT r.id, r.cancion_id, r.reproducido_en, c.pos
+    FROM reproducciones r JOIN cuentas c ON c.id = r.usuario_id
+  ), artist_totals AS (
+    SELECT a.spotify_artist_id, a.nombre AS artist_name, a.imagen_url AS image_url,
+      COUNT(*) FILTER (WHERE p.pos=1) AS account_1_streams,
+      COUNT(*) FILTER (WHERE p.pos=2) AS account_2_streams,
+      COUNT(*) AS combined_streams,
+      MIN(p.reproducido_en) AS first_played_at, MAX(p.reproducido_en) AS last_played_at
+    FROM plays p
+    JOIN (SELECT DISTINCT cancion_id, artista_id FROM cancion_artistas) ca ON ca.cancion_id=p.cancion_id
+    JOIN artistas a ON a.id=ca.artista_id
+    GROUP BY a.id, a.spotify_artist_id, a.nombre, a.imagen_url
+  )
+  SELECT jsonb_build_object(
+    'success', true, 'scope', 'lifetime', 'synced_at', NOW(),
+    'accounts', COALESCE((SELECT jsonb_agg(jsonb_build_object(
+      'id',id,'spotify_user_id',spotify_user_id,'nombre_display',nombre_display,
+      'necesita_reconexion',necesita_reconexion,'position',pos) ORDER BY pos) FROM cuentas), '[]'::jsonb),
+    'summary', (SELECT jsonb_build_object(
+      'account_1_streams',COUNT(*) FILTER (WHERE pos=1),
+      'account_2_streams',COUNT(*) FILTER (WHERE pos=2),
+      'combined_streams',COUNT(*),'first_played_at',MIN(reproducido_en),'last_played_at',MAX(reproducido_en)) FROM plays),
+    'total_records', (SELECT COUNT(*) FROM artist_totals),
+    'records', COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY combined_streams DESC,spotify_artist_id) FROM artist_totals a),'[]'::jsonb)
+  ) AS snapshot;
+`;
+
+async function obtenerStreamsHistoricosPorArtista(database = db) {
+  const { rows } = await database.query(SQL_LIFETIME_ARTIST_STREAMS);
+  return { ...rows[0].snapshot, timezone: ZONA_HORARIA };
+}
+
+router.get('/lifetime-artist-streams', async (_req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json(await obtenerStreamsHistoricosPorArtista());
+  } catch (err) {
+    console.error('Error en /api/integrations/lifetime-artist-streams:', describirError(err));
+    Sentry.captureException(err, { tags: { ruta: '/api/integrations/lifetime-artist-streams' } });
+    res.status(500).json({ success: false, error: 'No se pudo consultar el historial de reproducciones.' });
+  }
+});
+
 module.exports = {
   router,
   obtenerStreamsDiariosPorArtista,
-  SQL_DAILY_ARTIST_STREAMS
+  SQL_DAILY_ARTIST_STREAMS,
+  SQL_LIFETIME_ARTIST_STREAMS,
+  obtenerStreamsHistoricosPorArtista
 };
