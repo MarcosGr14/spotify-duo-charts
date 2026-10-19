@@ -14,3 +14,9 @@ Devuelve `scope: lifetime`, `synced_at`, `timezone`, `accounts`, `summary`, `tot
 - Sin historial, devuelve cuentas disponibles, `records: []`, contadores en cero y fechas nulas.
 
 No requiere cambios en el esquema ni modifica datos del servicio de origen.
+
+## Filtros del catálogo y rango
+
+Los endpoints histórico y diario aceptan `artist_ids` (IDs Spotify separados por comas, máximo 200). El histórico acepta `from=YYYY-MM-DD`; su total global cuenta solo eventos que acreditan al menos un artista seleccionado, sin duplicarlos por colaboraciones. La respuesta histórica incluye `filter` para verificar los filtros aplicados.
+
+`GET /api/integrations/artist-streams-range?from=YYYY-MM-DD&to=YYYY-MM-DD&artist_ids=...` devuelve los conteos por artista y día dentro del rango inclusivo (máximo dos años), usando America/Panama. El filtro de artistas es obligatorio. Los días sin reproducciones no tienen filas. Esta consulta permite importar el año en una sola petición y evita transferir artistas fuera del catálogo.

@@ -49,4 +49,18 @@ describeWithDb('Lifetime integration (isolated PostgreSQL)', () => {
     expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toBe('no-store');
     expect((await response.json()).summary.combined_streams).toBe(4);
   });
+  test('catalog and date filters exclude other artists and count collaborations once', async()=>{
+    const data=await obtenerStreamsHistoricosPorArtista(pool,['artist1'],'2020-06-01');
+    expect(data.records.map(r=>r.spotify_artist_id)).toEqual(['artist1']);
+    expect(data.summary.combined_streams).toBe(2);
+    expect(data.filter).toEqual({artist_ids:['artist1'],from:'2020-06-01'});
+    const response=await fetch(base+'/artist-streams-range?from=2020-06-01&to=2022-01-01&artist_ids=artist1',{headers:{'x-integration-token':'integration-tests-only'}});
+    expect(response.status).toBe(200);
+    const range=await response.json();
+    expect(range.records).toHaveLength(2);
+    expect(range.records.every(r=>r.spotify_artist_id==='artist1')).toBe(true);
+    expect(range.records.reduce((n,r)=>n+r.combined_streams,0)).toBe(2);
+    expect((await fetch(base+'/artist-streams-range?from=2020-06-01&to=2022-01-01',{headers:{'x-integration-token':'integration-tests-only'}})).status).toBe(400);
+  });
+
 });

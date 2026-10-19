@@ -81,6 +81,9 @@ const SQL_DAILY_ARTIST_STREAMS = `
     FROM reproducciones r
     JOIN rango_dia rd ON r.reproducido_en >= rd.inicio AND r.reproducido_en < rd.fin
     JOIN cancion_artistas ca ON ca.cancion_id = r.cancion_id
+    JOIN artistas selected_artist ON selected_artist.id=ca.artista_id
+    WHERE r.usuario_id IN (SELECT id FROM cuentas)
+      AND ($3::text[] IS NULL OR selected_artist.spotify_artist_id=ANY($3))
   )
   SELECT 
     ar.spotify_artist_id,
@@ -95,9 +98,9 @@ const SQL_DAILY_ARTIST_STREAMS = `
   ORDER BY combined_streams DESC, ar.nombre ASC;
 `;
 
-async function obtenerStreamsDiariosPorArtista(fecha, zonaHoraria, database = db) {
+async function obtenerStreamsDiariosPorArtista(fecha, zonaHoraria, database = db, artistIds = null) {
   const [resultadoStreams, resultadoCuentas] = await Promise.all([
-    database.query(SQL_DAILY_ARTIST_STREAMS, [fecha, zonaHoraria]),
+    database.query(SQL_DAILY_ARTIST_STREAMS, [fecha, zonaHoraria, artistIds]),
     database.query(
       'SELECT id, spotify_user_id, nombre_display, necesita_reconexion FROM usuarios_spotify ORDER BY id LIMIT 2'
     )
@@ -111,6 +114,8 @@ async function obtenerStreamsDiariosPorArtista(fecha, zonaHoraria, database = db
 
 // GET /api/integrations/daily-artist-streams?date=YYYY-MM-DD
 router.get('/daily-artist-streams', async (req, res) => {
+  let artistIds;
+  try { artistIds = parseArtistIds(req.query.artist_ids); } catch(e) { return res.status(400).json({error:e.message}); }
   const fechaParam = req.query.date;
   let fecha = fechaParam;
 
@@ -125,7 +130,7 @@ router.get('/daily-artist-streams', async (req, res) => {
   }
 
   try {
-    const { accounts, rows } = await obtenerStreamsDiariosPorArtista(fecha, ZONA_HORARIA);
+    const { accounts, rows } = await obtenerStreamsDiariosPorArtista(fecha, ZONA_HORARIA, db, artistIds);
 
     const records = rows.map((r) => ({
       spotify_artist_id: r.spotify_artist_id,
@@ -170,6 +175,10 @@ const SQL_LIFETIME_ARTIST_STREAMS = `
   ), plays AS (
     SELECT r.id, r.cancion_id, r.reproducido_en, c.pos
     FROM reproducciones r JOIN cuentas c ON c.id = r.usuario_id
+    WHERE ($2::date IS NULL OR r.reproducido_en >= ($2::date::timestamp AT TIME ZONE $3))
+      AND ($1::text[] IS NULL OR EXISTS (
+        SELECT 1 FROM cancion_artistas ca JOIN artistas a ON a.id=ca.artista_id
+        WHERE ca.cancion_id=r.cancion_id AND a.spotify_artist_id=ANY($1)))
   ), artist_totals AS (
     SELECT a.spotify_artist_id, a.nombre AS artist_name, a.imagen_url AS image_url,
       COUNT(*) FILTER (WHERE p.pos=1) AS account_1_streams,
@@ -179,6 +188,7 @@ const SQL_LIFETIME_ARTIST_STREAMS = `
     FROM plays p
     JOIN (SELECT DISTINCT cancion_id, artista_id FROM cancion_artistas) ca ON ca.cancion_id=p.cancion_id
     JOIN artistas a ON a.id=ca.artista_id
+    WHERE ($1::text[] IS NULL OR a.spotify_artist_id=ANY($1))
     GROUP BY a.id, a.spotify_artist_id, a.nombre, a.imagen_url
   )
   SELECT jsonb_build_object(
@@ -195,15 +205,17 @@ const SQL_LIFETIME_ARTIST_STREAMS = `
   ) AS snapshot;
 `;
 
-async function obtenerStreamsHistoricosPorArtista(database = db) {
-  const { rows } = await database.query(SQL_LIFETIME_ARTIST_STREAMS);
-  return { ...rows[0].snapshot, timezone: ZONA_HORARIA };
+async function obtenerStreamsHistoricosPorArtista(database = db, artistIds = null, from = null) {
+  const { rows } = await database.query(SQL_LIFETIME_ARTIST_STREAMS, [artistIds,from,ZONA_HORARIA]);
+  return { ...rows[0].snapshot, timezone: ZONA_HORARIA, filter: {artist_ids:artistIds,from} };
 }
 
-router.get('/lifetime-artist-streams', async (_req, res) => {
+router.get('/lifetime-artist-streams', async (req, res) => {
+  let artistIds, from;
+  try { artistIds=parseArtistIds(req.query.artist_ids); from=req.query.from || null; if(from && !validDate(from)) throw new Error('Fecha inválida.'); } catch(e) { return res.status(400).json({error:e.message}); }
   try {
     res.set('Cache-Control', 'no-store');
-    res.json(await obtenerStreamsHistoricosPorArtista());
+    res.json(await obtenerStreamsHistoricosPorArtista(db, artistIds, from));
   } catch (err) {
     console.error('Error en /api/integrations/lifetime-artist-streams:', describirError(err));
     Sentry.captureException(err, { tags: { ruta: '/api/integrations/lifetime-artist-streams' } });
@@ -211,10 +223,49 @@ router.get('/lifetime-artist-streams', async (_req, res) => {
   }
 });
 
+
+function parseArtistIds(value) {
+  if (value === undefined) return null;
+  if (typeof value !== 'string') throw new Error('artist_ids debe ser una lista separada por comas.');
+  const ids=[...new Set(value.split(','))];
+  if(ids.length>200 || ids.some(id=>!/^[-a-zA-Z0-9]{1,64}$/.test(id))) throw new Error('Filtro de artistas inválido.');
+  return ids;
+}
+function validDate(value) {
+  return typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
+}
+const SQL_ARTIST_STREAMS_RANGE = `
+  WITH cuentas AS (SELECT id,ROW_NUMBER() OVER (ORDER BY id) pos FROM usuarios_spotify ORDER BY id LIMIT 2)
+  SELECT a.spotify_artist_id,a.nombre AS artist_name,a.imagen_url AS image_url,
+    (r.reproducido_en AT TIME ZONE $4)::date::text AS competition_date,
+    COUNT(*) FILTER (WHERE c.pos=1)::int AS account_1_streams,
+    COUNT(*) FILTER (WHERE c.pos=2)::int AS account_2_streams,COUNT(*)::int AS combined_streams
+  FROM reproducciones r JOIN cuentas c ON c.id=r.usuario_id
+  JOIN cancion_artistas ca ON ca.cancion_id=r.cancion_id JOIN artistas a ON a.id=ca.artista_id
+  WHERE a.spotify_artist_id=ANY($3::text[])
+    AND r.reproducido_en>=($1::date::timestamp AT TIME ZONE $4)
+    AND r.reproducido_en< (($2::date+1)::timestamp AT TIME ZONE $4)
+  GROUP BY a.id,a.spotify_artist_id,a.nombre,a.imagen_url,(r.reproducido_en AT TIME ZONE $4)::date
+  ORDER BY competition_date,a.spotify_artist_id;
+`;
+router.get('/artist-streams-range',async(req,res)=>{
+  let artistIds;
+  const {from,to}=req.query;
+  try {
+    artistIds=parseArtistIds(req.query.artist_ids);
+    if(!artistIds || !validDate(from) || !validDate(to) || from>to || Date.parse(to)-Date.parse(from)>730*86400000) throw new Error('Se requiere filtro de artistas y un rango válido de hasta dos años.');
+  }catch(e){return res.status(400).json({success:false,error:e.message});}
+  try {
+    const {rows}=await db.query(SQL_ARTIST_STREAMS_RANGE,[from,to,artistIds,ZONA_HORARIA]);
+    res.json({success:true,from,to,artist_ids:artistIds,timezone:ZONA_HORARIA,records:rows,synced_at:new Date().toISOString()});
+  }catch(e){Sentry.captureException(e);res.status(500).json({success:false,error:'No se pudo consultar el rango de reproducciones.'});}
+});
+
 module.exports = {
   router,
   obtenerStreamsDiariosPorArtista,
   SQL_DAILY_ARTIST_STREAMS,
   SQL_LIFETIME_ARTIST_STREAMS,
+  SQL_ARTIST_STREAMS_RANGE,
   obtenerStreamsHistoricosPorArtista
 };
