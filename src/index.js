@@ -86,11 +86,6 @@ setInterval(async () => {
     for (const usuario of usuarios) {
       await pollRecentlyPlayed(usuario);
     }
-    // Con cualquier cuenta activa alcanza para pedirle a Spotify
-    // las fotos de artistas que todavía falten
-    if (usuarios.length) {
-      await completarImagenesDeArtistas(usuarios[0]);
-    }
   } catch (err) {
     console.error('[ciclo recently-played] Error:', describirError(err));
     Sentry.captureException(err);
@@ -98,3 +93,15 @@ setInterval(async () => {
 }, INTERVALO_HISTORIAL_MS);
 
 console.log('Workers de polling programados.');
+// Fotos en un ciclo independiente: un historial lento no bloquea el catálogo.
+async function actualizarFotos() {
+  try {
+    const usuarios = await obtenerUsuariosActivos();
+    const usuario = usuarios.find((item) => !item.necesita_reconexion);
+    if (usuario) await completarImagenesDeArtistas(usuario);
+  } catch (err) {
+    console.error('[fotos artistas] No se pudo consultar una cuenta activa.');
+  }
+}
+actualizarFotos();
+setInterval(actualizarFotos, INTERVALO_HISTORIAL_MS);

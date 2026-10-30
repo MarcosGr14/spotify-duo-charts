@@ -27,8 +27,12 @@ CREATE TABLE artistas (
     id                  SERIAL PRIMARY KEY,
     spotify_artist_id   VARCHAR(64) UNIQUE NOT NULL,
     nombre              VARCHAR(200) NOT NULL,
-    imagen_url          TEXT
+    imagen_url          TEXT,
+    imagen_revisar_en   TIMESTAMPTZ
 );
+
+CREATE INDEX idx_artistas_imagen_revisar_en
+    ON artistas (imagen_revisar_en ASC NULLS FIRST, id);
 
 CREATE TABLE albumes (
     id                  SERIAL PRIMARY KEY,
