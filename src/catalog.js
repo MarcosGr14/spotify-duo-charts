@@ -1,5 +1,17 @@
 const db = require('./db');
 
+// Spotify entrega fechas con precisión de año, mes o día. PostgreSQL DATE
+// necesita un día: para precisiones parciales usamos el primero del período.
+function normalizarFechaLanzamiento(valor) {
+  if (typeof valor !== 'string' || !/^\d{4}(-\d{2})?(-\d{2})?$/.test(valor)) return null;
+  const partes = valor.split('-');
+  const fecha = partes.length === 1 ? `${valor}-01-01` : partes.length === 2 ? `${valor}-01` : valor;
+  const parsed = new Date(`${fecha}T00:00:00Z`);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== fecha || fecha.startsWith('0000')) return null;
+  return fecha;
+}
+
+
 async function upsertArtista(artistaSpotify) {
   const { rows } = await db.query(
     `INSERT INTO artistas (spotify_artist_id, nombre, imagen_url)
@@ -21,7 +33,7 @@ async function upsertAlbum(albumSpotify) {
       albumSpotify.id,
       albumSpotify.name,
       albumSpotify.images?.[0]?.url || null,
-      albumSpotify.release_date || null
+      normalizarFechaLanzamiento(albumSpotify.release_date)
     ]
   );
   return rows[0].id;
@@ -55,4 +67,4 @@ async function upsertCancion(trackSpotify) {
   return cancionId;
 }
 
-module.exports = { upsertArtista, upsertAlbum, upsertCancion };
+module.exports = { upsertArtista, upsertAlbum, upsertCancion, normalizarFechaLanzamiento };

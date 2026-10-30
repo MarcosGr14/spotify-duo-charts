@@ -49,3 +49,12 @@ test('no solapa lotes cuando llega otro ciclo', async () => {
   resolver({ data: { images: [] } });
   await primero;
 });
+test('un 429 sin Retry-After espera una hora y conserva la foto', async () => {
+  const pool = require('../src/db');
+  require('axios').get.mockRejectedValue({ response: { status: 429, headers: {} } });
+  await completar({ id: 1 });
+  const [sql, args] = pool.query.mock.calls[1];
+  expect(sql).not.toContain('imagen_url');
+  expect(args[0].getTime()).toBeGreaterThan(Date.now() + 3590000);
+  expect(JSON.stringify(console.warn.mock.calls)).toContain('próximo intento');
+});

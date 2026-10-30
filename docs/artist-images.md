@@ -10,12 +10,13 @@ Luego subir el código a GitHub para desplegar en Railway. El worker arranca al
 iniciar el servidor y revisa como máximo cinco artistas cada cinco minutos.
 Revisa el catálogo existente gradualmente; cada foto válida se renueva a los
 siete días. Una respuesta sin foto o un fallo individual se reintenta al día
-siguiente y conserva la URL anterior. HTTP 429 pausa según Retry-After; 401/403
+siguiente y conserva la URL anterior. HTTP 429 pausa según Retry-After (una hora si falta ese encabezado); 401/403
 pausa un día. Las pausas de pendientes se guardan en la base de datos.
 
 Los mensajes `[foto artista ...] HTTP 403`, `HTTP 401` o `HTTP 429` identifican
 restricciones de acceso, autorización o cuota respectivamente. No incluyen tokens.
-No se ha determinado aún la causa del fallo observado en producción.
+Los logs de producción del 30 de octubre confirmaron HTTP 429 / QUOTA_EXCEEDED.
+Se espacian las peticiones del lote por 300 ms y se registra el próximo intento.
 
 Para priorizar las siete fotos solicitadas, después de añadir la columna:
 
@@ -38,3 +39,7 @@ permiten distinguir una respuesta válida de una pausa. No poner imagen_url a
 NULL para forzar un refresco.
 
 Usar una réplica de Railway: el bloqueo de solapamiento es por proceso.
+
+Las fechas de álbumes con precisión de año/mes se normalizan al primer día del
+período para almacenarlas en DATE. Por ejemplo, 2002 se guarda como 2002-01-01;
+ese día representa precisión parcial, no una fecha exacta conocida.

@@ -22,7 +22,8 @@ async function completarImagenesDeArtistas(usuario) {
     if (!rows.length) return;
     const token = await obtenerAccessTokenValido(usuario.id);
     let actualizadas = 0;
-    for (const artista of rows) {
+    for (const [indice, artista] of rows.entries()) {
+      if (indice > 0) await new Promise((resolve) => setTimeout(resolve, 300));
       let espera = DIA;
       try {
         const { data } = await axios.get(
@@ -48,8 +49,9 @@ async function completarImagenesDeArtistas(usuario) {
         if (estado === 429 || estado === 401 || estado === 403) {
           const retry = Number(err.response?.headers?.['retry-after']);
           espera = estado === 429 && Number.isFinite(retry) && retry > 0
-            ? Math.max(retry * 1000, 60000) : (estado === 429 ? 60000 : DIA);
+            ? Math.max(retry * 1000, 60000) : (estado === 429 ? 60 * 60 * 1000 : DIA);
           pausaHasta = Date.now() + espera;
+          console.warn(`[fotos artistas] Lote detenido por HTTP ${estado}; próximo intento a partir de ${new Date(pausaHasta).toISOString()}. Se conservan las fotos anteriores.`);
           // Persistir la pausa de pendientes también protege ante reinicios.
           await db.query(
             `UPDATE public.artistas SET imagen_revisar_en = $1
