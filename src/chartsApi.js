@@ -1,7 +1,7 @@
 const express = require('express');
 const Sentry = require('@sentry/node');
 const db = require('./db');
-const { describirError } = require('./errorUtils');
+const { resumenError } = require('./safeErrors');
 const { calcularMusicMatch } = require('./musicMatch');
 const { calcularRecords } = require('./records');
 const { calcularActividad } = require('./activityStats');
@@ -20,6 +20,7 @@ router.get('/currently-playing', async (_req, res) => {
         u.nombre_display,
         u.imagen_url AS usuario_imagen,
         u.necesita_reconexion,
+        u.ultima_sincronizacion_en, u.ultimo_error_sync,
         c.nombre AS cancion,
         al.nombre AS album,
         al.imagen_url AS portada,
@@ -47,8 +48,8 @@ router.get('/currently-playing', async (_req, res) => {
 
     res.json(resultado);
   } catch (err) {
-    console.error('Error en /api/currently-playing:', describirError(err));
-    Sentry.captureException(err, { tags: { ruta: '/api/currently-playing' } });
+    console.error('Error en /api/currently-playing:', resumenError(err));
+    Sentry.captureException(new Error('Fallo de API'), { tags: { ruta: '/api/currently-playing' } });
     res.status(500).json({ error: 'No se pudo consultar el estado actual.' });
   }
 });
@@ -240,8 +241,8 @@ router.get('/charts', async (req, res) => {
 
     res.json(resultado);
   } catch (err) {
-    console.error('Error en /api/charts:', describirError(err));
-    Sentry.captureException(err, { tags: { ruta: '/api/charts' } });
+    console.error('Error en /api/charts:', resumenError(err));
+    Sentry.captureException(new Error('Fallo de API'), { tags: { ruta: '/api/charts' } });
     res.status(500).json({ error: 'No se pudo calcular el ranking.' });
   }
 });
@@ -252,12 +253,12 @@ router.get('/charts', async (req, res) => {
 router.get('/usuarios', async (_req, res) => {
   try {
     const { rows } = await db.query(
-      'SELECT id, nombre_display, imagen_url, necesita_reconexion FROM usuarios_spotify ORDER BY id'
+      'SELECT id, nombre_display, imagen_url, necesita_reconexion, ultima_sincronizacion_en, ultimo_intento_en, ultimo_error_sync, posibles_huecos, elementos_fallidos FROM usuarios_spotify ORDER BY id'
     );
     res.json(rows);
   } catch (err) {
-    console.error('Error en /api/usuarios:', describirError(err));
-    Sentry.captureException(err, { tags: { ruta: '/api/usuarios' } });
+    console.error('Error en /api/usuarios:', resumenError(err));
+    Sentry.captureException(new Error('Fallo de API'), { tags: { ruta: '/api/usuarios' } });
     res.status(500).json({ error: 'No se pudo consultar los usuarios.' });
   }
 });
@@ -326,8 +327,8 @@ router.get('/historial-item', async (req, res) => {
     const { rows } = await db.query(QUERIES_HISTORIAL[tipo], [id, usuarioId]);
     res.json(rows);
   } catch (err) {
-    console.error('Error en /api/historial-item:', describirError(err));
-    Sentry.captureException(err, { tags: { ruta: '/api/historial-item' } });
+    console.error('Error en /api/historial-item:', resumenError(err));
+    Sentry.captureException(new Error('Fallo de API'), { tags: { ruta: '/api/historial-item' } });
     res.status(500).json({ error: 'No se pudo calcular el historial.' });
   }
 });
@@ -342,8 +343,8 @@ router.get('/music-match', async (req, res) => {
     const resultado = await calcularMusicMatch(dias);
     res.json(resultado);
   } catch (err) {
-    console.error('Error en /api/music-match:', describirError(err));
-    Sentry.captureException(err, { tags: { ruta: '/api/music-match' } });
+    console.error('Error en /api/music-match:', resumenError(err));
+    Sentry.captureException(new Error('Fallo de API'), { tags: { ruta: '/api/music-match' } });
     res.status(500).json({ error: 'No se pudo calcular el Music Match.' });
   }
 });
@@ -362,8 +363,8 @@ router.get('/records', async (req, res) => {
     const resultado = await calcularRecords(dias);
     res.json(resultado);
   } catch (err) {
-    console.error('Error en /api/records:', describirError(err));
-    Sentry.captureException(err, { tags: { ruta: '/api/records' } });
+    console.error('Error en /api/records:', resumenError(err));
+    Sentry.captureException(new Error('Fallo de API'), { tags: { ruta: '/api/records' } });
     res.status(500).json({ error: 'No se pudieron calcular los records.' });
   }
 });
@@ -386,8 +387,8 @@ router.get('/activity', async (req, res) => {
     });
     res.json(resultado);
   } catch (err) {
-    console.error('Error en /api/activity:', describirError(err));
-    Sentry.captureException(err, { tags: { ruta: '/api/activity' } });
+    console.error('Error en /api/activity:', resumenError(err));
+    Sentry.captureException(new Error('Fallo de API'), { tags: { ruta: '/api/activity' } });
     res.status(500).json({ error: 'No se pudieron calcular las estadísticas de escucha.' });
   }
 });

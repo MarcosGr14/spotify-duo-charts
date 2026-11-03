@@ -3,7 +3,7 @@ const express = require('express');
 const Sentry = require('@sentry/node');
 const db = require('./db');
 const { ZONA_HORARIA, INTEGRATION_TOKEN } = require('./config');
-const { describirError } = require('./errorUtils');
+const { resumenError } = require('./safeErrors');
 
 const router = express.Router();
 
@@ -157,8 +157,8 @@ router.get('/daily-artist-streams', async (req, res) => {
       records
     });
   } catch (err) {
-    console.error('Error en /api/integrations/daily-artist-streams:', describirError(err));
-    Sentry.captureException(err, { tags: { ruta: '/api/integrations/daily-artist-streams' } });
+    console.error('Error en /api/integrations/daily-artist-streams:', resumenError(err));
+    Sentry.captureException(new Error('Fallo de API'), { tags: { ruta: '/api/integrations/daily-artist-streams' } });
     res.status(500).json({
       error: 'No se pudieron consultar las estadísticas de escucha por artista.'
     });
@@ -217,8 +217,8 @@ router.get('/lifetime-artist-streams', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     res.json(await obtenerStreamsHistoricosPorArtista(db, artistIds, from));
   } catch (err) {
-    console.error('Error en /api/integrations/lifetime-artist-streams:', describirError(err));
-    Sentry.captureException(err, { tags: { ruta: '/api/integrations/lifetime-artist-streams' } });
+    console.error('Error en /api/integrations/lifetime-artist-streams:', resumenError(err));
+    Sentry.captureException(new Error('Fallo de API'), { tags: { ruta: '/api/integrations/lifetime-artist-streams' } });
     res.status(500).json({ success: false, error: 'No se pudo consultar el historial de reproducciones.' });
   }
 });

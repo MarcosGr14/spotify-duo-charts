@@ -8,7 +8,6 @@ const { router: authRouter } = require('./spotifyAuth');
 const chartsApiRouter = require('./chartsApi');
 const { router: integrationsApiRouter } = require('./integrationsApi');
 const db = require('./db');
-const { describirError } = require('./errorUtils');
 const {
   pollCurrentlyPlaying,
   pollRecentlyPlayed,
@@ -17,17 +16,17 @@ const {
 } = require('./poller');
 
 const app = express();
+const { configureSecurity } = require('./security');
+const { programar, registrarVisitante, hayVisitantes } = require('./workers');
+configureSecurity(app);
+app.use((req, res, next) => {
+  if (req.path === '/api/currently-playing') registrarVisitante();
+  next();
+});
 
-// Red de seguridad: si algo se escapa sin capturar, lo logueamos
-// Y se lo mandamos a Sentry — pero NO dejamos que tumbe el servidor entero.
-process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err);
-  Sentry.captureException(err);
-});
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-  Sentry.captureException(err);
-});
+// Tras un error no recuperable, Railway reinicia el proceso limpiamente.
+process.on('unhandledRejection', () => { console.error('[fatal] Promesa no controlada'); process.exitCode = 1; shutdown(); });
+process.on('uncaughtException', () => { console.error('[fatal] Excepción no controlada'); process.exitCode = 1; shutdown(); });
 
 app.use(authRouter);
 app.use('/api', chartsApiRouter);
@@ -42,7 +41,7 @@ app.get('/health', async (_req, res) => {
     await db.query('SELECT 1');
     res.status(200).json({ status: 'ok', db: 'connected', timestamp: new Date().toISOString() });
   } catch (err) {
-    res.status(503).json({ status: 'error', db: 'disconnected', error: describirError(err) });
+    res.status(503).json({ status: 'error', db: 'disconnected', error: 'Servicio temporalmente no disponible' });
   }
 });
 
@@ -53,55 +52,38 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // middleware de manejo de errores.
 Sentry.setupExpressErrorHandler(app);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Servidor escuchando en el puerto ${PORT}`);
 });
 
-// ------------------------------------------------------------
-// Ciclo de polling: currently-playing (frecuente, para el widget en vivo)
-// Envuelto en try/catch para que un error de red o de base de datos
-// no tumbe todo el proceso — solo se saltea ese ciclo y reintenta
-// en el próximo intervalo. Como esto corre en segundo plano (no es
-// parte de ningún request HTTP), Sentry no lo ve solo — hay que
-// mandarle la excepción a mano con captureException.
-// ------------------------------------------------------------
-setInterval(async () => {
+const paradas = [];
+let historialActivo = false;
+paradas.push(programar('historial', async () => {
+  historialActivo = true;
   try {
-    const usuarios = await obtenerUsuariosActivos();
-    for (const usuario of usuarios) {
-      await pollCurrentlyPlaying(usuario);
-    }
-  } catch (err) {
-    console.error('[ciclo currently-playing] Error:', describirError(err));
-    Sentry.captureException(err);
-  }
-}, INTERVALO_CURRENTLY_MS);
-
-// ------------------------------------------------------------
-// Ciclo de polling: recently-played (menos frecuente, historial real)
-// ------------------------------------------------------------
-setInterval(async () => {
-  try {
-    const usuarios = await obtenerUsuariosActivos();
-    for (const usuario of usuarios) {
-      await pollRecentlyPlayed(usuario);
-    }
-  } catch (err) {
-    console.error('[ciclo recently-played] Error:', describirError(err));
-    Sentry.captureException(err);
-  }
-}, INTERVALO_HISTORIAL_MS);
-
-console.log('Workers de polling programados.');
-// Fotos en un ciclo independiente: un historial lento no bloquea el catálogo.
-async function actualizarFotos() {
-  try {
-    const usuarios = await obtenerUsuariosActivos();
-    const usuario = usuarios.find((item) => !item.necesita_reconexion);
-    if (usuario) await completarImagenesDeArtistas(usuario);
-  } catch (err) {
-    console.error('[fotos artistas] No se pudo consultar una cuenta activa.');
-  }
+    for (const usuario of await obtenerUsuariosActivos()) await pollRecentlyPlayed(usuario);
+  } finally { historialActivo = false; }
+}, INTERVALO_HISTORIAL_MS));
+paradas.push(programar('actual', async () => {
+  if (!hayVisitantes() || historialActivo) return;
+  for (const usuario of await obtenerUsuariosActivos()) await pollCurrentlyPlaying(usuario);
+}, INTERVALO_CURRENTLY_MS));
+paradas.push(programar('fotos', async () => {
+  if (historialActivo) return;
+  const usuarios = await obtenerUsuariosActivos();
+  if (usuarios.length) await completarImagenesDeArtistas(usuarios[0]);
+}, INTERVALO_HISTORIAL_MS));
+let cerrando = false;
+async function shutdown() {
+  if (cerrando) return;
+  cerrando = true;
+  const forzar = setTimeout(() => process.exit(1), 15000);
+  forzar.unref();
+  server.close();
+  await Promise.allSettled(paradas.map((stop) => stop()));
+  await db.end();
+  clearTimeout(forzar);
 }
-actualizarFotos();
-setInterval(actualizarFotos, INTERVALO_HISTORIAL_MS);
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+console.log('Workers de polling programados.');

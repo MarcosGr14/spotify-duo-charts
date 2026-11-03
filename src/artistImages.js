@@ -1,4 +1,4 @@
-const axios = require('axios');
+const spotify = require('./spotifyClient');
 const db = require('./db');
 const { obtenerAccessTokenValido } = require('./spotifyAuth');
 
@@ -26,10 +26,8 @@ async function completarImagenesDeArtistas(usuario) {
       if (indice > 0) await new Promise((resolve) => setTimeout(resolve, 300));
       let espera = DIA;
       try {
-        const { data } = await axios.get(
-          `https://api.spotify.com/v1/artists/${encodeURIComponent(artista.spotify_artist_id)}`,
-          { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 }
-        );
+        const { data } = await spotify.request({ url: `https://api.spotify.com/v1/artists/${encodeURIComponent(artista.spotify_artist_id)}`,
+          headers: { Authorization: `Bearer ${token}` } });
         const imagen = data.images?.find((item) => {
           try { return new URL(item.url).protocol === 'https:'; } catch { return false; }
         })?.url;
@@ -43,6 +41,7 @@ async function completarImagenesDeArtistas(usuario) {
         }
         console.warn(`[foto artista ${artista.spotify_artist_id}] Spotify no devolvió foto; se conserva la anterior.`);
       } catch (err) {
+        if (err.code === 'SPOTIFY_PAUSED') break;
         const estado = err.response?.status;
         // No registrar el objeto Axios: contiene el encabezado Authorization.
         console.error(`[foto artista ${artista.spotify_artist_id}] ${estado ? `HTTP ${estado}` : (err.code || 'error de conexión')}`);

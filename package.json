@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "",
   "main": "src/index.js",
-    "scripts": {
+  "scripts": {
     "start": "node src/index.js",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "backup": "node scripts/backup.js",
+    "backup:verify": "node scripts/backup.js verify"
   },
   "keywords": [],
   "author": "",
@@ -13,8 +15,11 @@
   "dependencies": {
     "@sentry/node": "^10.70.0",
     "axios": "^1.19.0",
+    "cookie-parser": "1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "8.7.3",
+    "helmet": "8.3.0",
     "pg": "^8.23.0",
     "ws": "^8.21.3"
   },

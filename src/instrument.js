@@ -16,6 +16,9 @@ Sentry.init({
   dsn: process.env.SENTRY_DSN || '',
   environment: process.env.NODE_ENV || 'production',
   integrations: [Sentry.expressIntegration()],
+  sendDefaultPii: false,
+  beforeSend: require('./safeErrors').limpiarEvento,
+  beforeSendTransaction: require('./safeErrors').limpiarEvento,
   tracesSampleRate: 0.1 // 10% de los requests, para no gastar cuota gratis de más
 });
 

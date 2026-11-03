@@ -15,6 +15,11 @@ CREATE TABLE usuarios_spotify (
     refresh_token       TEXT NOT NULL,
     token_expira_en     TIMESTAMPTZ NOT NULL,
     necesita_reconexion BOOLEAN NOT NULL DEFAULT false,  -- true si el refresh token dejó de funcionar
+    ultima_sincronizacion_en TIMESTAMPTZ,
+    ultimo_intento_en    TIMESTAMPTZ,
+    ultimo_error_sync    TEXT,
+    posibles_huecos      INTEGER NOT NULL DEFAULT 0,
+    elementos_fallidos   INTEGER NOT NULL DEFAULT 0,
     creado_en           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -144,3 +149,10 @@ CREATE TABLE reproduccion_actual (
 -- JOIN canciones c ON c.id = sa.cancion_id
 -- LEFT JOIN semana_pasada sp ON sp.cancion_id = sa.cancion_id
 -- ORDER BY sa.posicion;
+
+-- Estado interno del servidor, fuera del esquema expuesto por la Data API.
+CREATE SCHEMA IF NOT EXISTS app_private;
+REVOKE ALL ON SCHEMA app_private FROM PUBLIC;
+CREATE TABLE IF NOT EXISTS app_private.runtime (clave TEXT PRIMARY KEY, valor JSONB NOT NULL);
+REVOKE ALL ON app_private.runtime FROM PUBLIC;
+ALTER TABLE app_private.runtime ENABLE ROW LEVEL SECURITY;
