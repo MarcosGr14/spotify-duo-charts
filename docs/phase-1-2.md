@@ -4,13 +4,13 @@
 
 - Respaldos reales creados y restaurados en PostgreSQL aislado, con conteos y tokens verificados.
 - Estado de sincronización aplicado en Supabase; las dos cuentas sincronizaron con éxito, cero elementos fallidos.
-- Rol duo_runtime preparado en producción con NOLOGIN; aún no sustituye la credencial actual.
+- Railway y la conexión local usan duo_runtime, con LOGIN y nueva contraseña establecidos por el propietario.
 - BACKUP_DATABASE_URL, ENCRYPTION_KEY y BACKUP_PASSPHRASE configurados como secretos del repositorio.
-- 78 pruebas pasaron con PostgreSQL real; smoke de interfaz, assets, health y API correcto.
+- 81 pruebas pasaron con PostgreSQL real; smoke de interfaz, assets, health y API correcto.
 - npm audit --omit=dev: cero vulnerabilidades conocidas. Persisten avisos de desarrollo en dependencias de Jest; no se aplicó una bajada de versión forzada.
-- El código y el workflow necesitan publicarse para activarse en Railway/GitHub.
-- Rotación de contraseña y activación de una credencial de mínimos privilegios: pendientes.
-- SSL enforcement global del proyecto: pendiente de adaptar también los otros clientes.
+- Código desplegado y CI correcto. Primer workflow de respaldo y restauración completado correctamente.
+- Contraseña administrativa rotada por el propietario; respaldo GitHub y conexión local actualizados y comprobados.
+- SSL enforcement global activado y comprobado; el propietario confirmó que solo se conectan Spotify Charts y los respaldos.
 
 
 ## Cambios incluidos
@@ -67,8 +67,7 @@ Revisar su vigencia cuando Supabase anuncie una rotación de certificados.
 
 Con el pooler, pg_stat_ssl describe el tramo pooler→PostgreSQL, no el cliente→pooler.
 La verificación local del cliente usa stream.encrypted y stream.authorized.
-El tramo interno aparecía sin TLS: para exigirlo globalmente se debe habilitar
-SSL enforcement en Supabase después de adaptar los otros clientes del proyecto.
+El tramo interno también está cifrado tras activar SSL enforcement en Supabase.
 
 ## Compatibilidad de despliegue
 
@@ -77,3 +76,23 @@ antigua que no reconozca ese prefijo, antes de usarla se puede retirar únicamen
 el prefijo de access_token/refresh_token con substring(... FROM 8) donde LIKE
 'enc:v1:%'. No cambiar ENCRYPTION_KEY ni descifrar los valores: el contenido cifrado
 es exactamente el mismo. Hacer respaldo antes de cualquier reversión.
+
+## Verificación de producción
+
+- CI del commit 7a74ad9 correcto: https://github.com/MarcosGr14/spotify-duo-charts/actions/runs/41692657740.
+- Railway desplegado y /health devuelve 200 con la base conectada.
+- Las siete fotos solicitadas tienen URLs nuevas respecto a las originales.
+- SSL obligatorio activado; conexión del cliente validada y pg_stat_ssl=true.
+- duo_runtime probado bajo RLS: permite registrar y consultar escuchas, sin borrar historial ni acceder a diario.
+- Railway y la conexión local utilizan duo_runtime.
+- Contraseña administrativa rotada por el propietario; secreto de GitHub actualizado mediante scripts/update-connections.js.
+- Respaldo, restauración aislada y subida del archivo cifrado comprobados con la nueva credencial: https://github.com/MarcosGr14/spotify-duo-charts/actions/runs/41697401603.
+- Programación diaria a las 03:15 de Panamá, con retención de 30 días.
+
+## Actualización de conexiones
+
+El asistente `node scripts/update-connections.js` solicita las dos contraseñas sin
+mostrarlas. Codifica los símbolos para URL, comprueba el acceso por TLS y el rol
+de cada conexión antes de guardar DATABASE_URL y BACKUP_DATABASE_URL en .env.
+Después actualiza únicamente el secreto BACKUP_DATABASE_URL del repositorio.
+No imprime contraseñas ni modifica la conexión desplegada en Railway.
