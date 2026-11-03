@@ -1,4 +1,5 @@
 const db = require('./db');
+const cached = require('./catalogCache').createCatalogCache();
 
 // Spotify entrega fechas con precisión de año, mes o día. PostgreSQL DATE
 // necesita un día: para precisiones parciales usamos el primero del período.
@@ -42,7 +43,7 @@ async function upsertAlbum(albumSpotify) {
 // Recibe un objeto "track" tal cual lo devuelve la API de Spotify
 // y devuelve el id interno de la canción, creando todo lo necesario
 // en el catálogo (artistas, álbum) si no existía.
-async function upsertCancion(trackSpotify) {
+async function guardarCancion(trackSpotify) {
   const albumId = await upsertAlbum(trackSpotify.album);
 
   const { rows } = await db.query(
@@ -65,6 +66,14 @@ async function upsertCancion(trackSpotify) {
   }
 
   return cancionId;
+}
+
+function upsertCancion(trackSpotify) {
+  // La huella cambia si Spotify modifica nombres, álbum o colaboradores.
+  const key = JSON.stringify([trackSpotify.id, trackSpotify.name, trackSpotify.duration_ms,
+    trackSpotify.album?.id, trackSpotify.album?.name, trackSpotify.album?.release_date,
+    trackSpotify.album?.images?.[0]?.url, trackSpotify.artists?.map((a) => [a.id,a.name])]);
+  return cached(key, () => guardarCancion(trackSpotify));
 }
 
 module.exports = { upsertArtista, upsertAlbum, upsertCancion, normalizarFechaLanzamiento };

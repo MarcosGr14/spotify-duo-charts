@@ -28,8 +28,17 @@ app.use((req, res, next) => {
 process.on('unhandledRejection', () => { console.error('[fatal] Promesa no controlada'); process.exitCode = 1; shutdown(); });
 process.on('uncaughtException', () => { console.error('[fatal] Excepción no controlada'); process.exitCode = 1; shutdown(); });
 
+app.use('/api', (req, res, next) => {
+  const start = performance.now();
+  const end = res.end;
+  res.end = function(...args) {
+    if (!res.headersSent) res.set('Server-Timing', `app;dur=${(performance.now()-start).toFixed(1)}`);
+    return end.apply(this,args);
+  };
+  next();
+});
 app.use(authRouter);
-app.use('/api', chartsApiRouter);
+app.use('/api', require('./responseCache').responseCache, chartsApiRouter);
 app.use('/api/integrations', integrationsApiRouter);
 // ------------------------------------------------------------
 // GET /health — para el monitor de uptime. Chequea que el servidor
@@ -57,22 +66,24 @@ const server = app.listen(PORT, () => {
 });
 
 const paradas = [];
-let historialActivo = false;
-paradas.push(programar('historial', async () => {
-  historialActivo = true;
-  try {
-    for (const usuario of await obtenerUsuariosActivos()) await pollRecentlyPlayed(usuario);
-  } finally { historialActivo = false; }
-}, INTERVALO_HISTORIAL_MS));
-paradas.push(programar('actual', async () => {
-  if (!hayVisitantes() || historialActivo) return;
-  for (const usuario of await obtenerUsuariosActivos()) await pollCurrentlyPlaying(usuario);
-}, INTERVALO_CURRENTLY_MS));
-paradas.push(programar('fotos', async () => {
-  if (historialActivo) return;
-  const usuarios = await obtenerUsuariosActivos();
-  if (usuarios.length) await completarImagenesDeArtistas(usuarios[0]);
-}, INTERVALO_HISTORIAL_MS));
+if (process.env.APP_WORKERS_ENABLED !== 'false') {
+  let historialActivo = false;
+  paradas.push(programar('historial', async () => {
+    historialActivo = true;
+    try {
+      for (const usuario of await obtenerUsuariosActivos()) await pollRecentlyPlayed(usuario);
+    } finally { historialActivo = false; }
+  }, INTERVALO_HISTORIAL_MS));
+  paradas.push(programar('actual', async () => {
+    if (!hayVisitantes() || historialActivo) return;
+    for (const usuario of await obtenerUsuariosActivos()) await pollCurrentlyPlaying(usuario);
+  }, INTERVALO_CURRENTLY_MS));
+  paradas.push(programar('fotos', async () => {
+    if (historialActivo) return;
+    const usuarios = await obtenerUsuariosActivos();
+    if (usuarios.length) await completarImagenesDeArtistas(usuarios[0]);
+  }, INTERVALO_HISTORIAL_MS));
+}
 let cerrando = false;
 async function shutdown() {
   if (cerrando) return;
@@ -86,4 +97,4 @@ async function shutdown() {
 }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
-console.log('Workers de polling programados.');
+console.log(paradas.length ? 'Workers de polling programados.' : 'Workers desactivados en este proceso.');

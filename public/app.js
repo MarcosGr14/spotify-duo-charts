@@ -19,6 +19,23 @@ const state = {
   profileColor: '#ff5f6d'
 };
 
+// Una petición de filtros antiguos no debe seguir compitiendo con la vista actual.
+const gruposPeticiones = new Map();
+function nuevoGrupo(nombre) {
+  gruposPeticiones.get(nombre)?.abort();
+  const controller = new AbortController(); gruposPeticiones.set(nombre,controller);
+  return controller.signal;
+}
+function cancelarPeticionesVista() {
+  for (const controller of gruposPeticiones.values()) controller.abort();
+  gruposPeticiones.clear();
+}
+function vistaFetch(url, nombre) {
+  const controller = gruposPeticiones.get(nombre);
+  const signal = controller ? controller.signal : nuevoGrupo(nombre);
+  return fetch(url, { signal });
+}
+
 const LIMITE_POR_PAGINA = 20;
 const DIAS_TODO_EL_TIEMPO = 36500; // ~100 años, reutiliza las mismas queries del backend
 
@@ -191,9 +208,13 @@ async function extraerColorPromedio(url) {
 // ------------------------------------------------------------
 // Now Playing
 // ------------------------------------------------------------
+let tickerOcupado = false;
 async function actualizarTicker() {
+  if (document.hidden || state.view !== 'overview' || tickerOcupado) return;
+  tickerOcupado = true;
+  const signal = nuevoGrupo('ticker');
   try {
-    const resp = await fetch('/api/currently-playing');
+    const resp = await vistaFetch('/api/currently-playing','ticker');
     const data = await resp.json();
 
     const tarjetas = await Promise.all(
@@ -256,11 +277,13 @@ async function actualizarTicker() {
       })
     );
 
+    if (signal.aborted || state.view !== 'overview') return;
     el.ticker.innerHTML = tarjetas.join('');
     actualizarBarrasDeProgreso();
   } catch (err) {
+    if (err.name === 'AbortError') return;
     console.error('Error consultando currently-playing:', err);
-  }
+  } finally { tickerOcupado = false; }
 }
 
 // Corre cada 1s, independiente del poll de 20s — recalcula el ancho de
@@ -333,11 +356,12 @@ function renderBalance(balance) {
 }
 
 async function cargarMusicMatch() {
+  nuevoGrupo('match');
   el.matchSection.hidden = false;
   mostrarEstadoMatch('loading');
 
   try {
-    const resp = await fetch('/api/music-match?dias=7');
+    const resp = await vistaFetch('/api/music-match?dias=7', 'match');
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 
@@ -379,6 +403,7 @@ async function cargarMusicMatch() {
 
     mostrarEstadoMatch('content');
   } catch (err) {
+    if (err.name === 'AbortError') return;
     console.error('Error consultando music-match:', err);
     mostrarEstadoMatch('error');
   }
@@ -451,11 +476,12 @@ function renderSharedObsession(item) {
 }
 
 async function cargarInsights() {
+  nuevoGrupo('insights');
   el.insightsSection.hidden = false;
   mostrarEstadoInsights('loading');
 
   try {
-    const resp = await fetch('/api/records?dias=7');
+    const resp = await vistaFetch('/api/records?dias=7', 'insights');
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 
@@ -470,6 +496,7 @@ async function cargarInsights() {
 
     mostrarEstadoInsights('content');
   } catch (err) {
+    if (err.name === 'AbortError') return;
     console.error('Error consultando records:', err);
     mostrarEstadoInsights('error');
   }
@@ -560,6 +587,7 @@ async function actualizarChart(reset = true) {
   if (reset) state.offset = 0;
 
   const idSolicitud = ++ultimaSolicitudChart;
+  nuevoGrupo('chart');
   const params = construirParams(state.offset);
 
   if (reset) {
@@ -574,7 +602,7 @@ async function actualizarChart(reset = true) {
   }
 
   try {
-    const resp = await fetch(`/api/charts?${params.toString()}`);
+    const resp = await vistaFetch(`/api/charts?${params.toString()}`, 'chart');
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     if (!Array.isArray(data)) throw new Error('Invalid chart response');
@@ -614,7 +642,7 @@ async function actualizarChart(reset = true) {
     state.offset += data.length;
     el.loadMoreBtn.hidden = data.length < LIMITE_POR_PAGINA;
   } catch (err) {
-    if (idSolicitud !== ultimaSolicitudChart) return;
+    if (err.name === 'AbortError' || idSolicitud !== ultimaSolicitudChart) return;
     el.loadingState.hidden = true;
     el.chartList.classList.remove('loading');
     el.loadMoreBtn.textContent = 'Load more';
@@ -806,15 +834,19 @@ el.chartList.addEventListener('keydown', (e) => {
 // Overview: versión liviana (Now Playing + Music Match + Insights + Top 3), sin controles ni lista
 // ------------------------------------------------------------
 async function cargarOverview() {
+  const signal = nuevoGrupo('overview');
   cargarMusicMatch();
   cargarInsights();
   cargarActividad();
   try {
     const params = new URLSearchParams({ scope: 'global', dias: 7, tipo: 'canciones', offset: 0 });
-    const resp = await fetch(`/api/charts?${params.toString()}`);
+    const resp = await fetch(`/api/charts?${params.toString()}`, { signal });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
+    if (signal.aborted || state.view !== 'overview') return;
     renderTop3(data.slice(0, 3), 'Top Songs', '7 days', false, true);
   } catch (err) {
+    if (err.name === 'AbortError') return;
     console.error('Error consultando overview:', err);
   }
 }
@@ -832,7 +864,10 @@ function renderActivityScopes() {
   ].join('');
 }
 
+let solicitudActividad = 0;
 async function cargarActividad() {
+  const solicitud = ++solicitudActividad;
+  nuevoGrupo('actividad');
   el.activitySection.hidden = false;
   el.activityLoading.hidden = false;
   el.activityError.hidden = true;
@@ -845,9 +880,10 @@ async function cargarActividad() {
       params.set('scope', 'individual');
       params.set('usuario_id', state.activityUserId);
     }
-    const response = await fetch(`/api/activity?${params}`);
+    const response = await vistaFetch(`/api/activity?${params}`, 'actividad');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
+    if (solicitud !== solicitudActividad) return;
     state.activityData = data;
     state.activityMonth = data.mes;
     state.activityTimezone = data.zona_horaria || 'America/Panama';
@@ -855,6 +891,7 @@ async function cargarActividad() {
     el.activityLoading.hidden = true;
     el.activityContent.hidden = false;
   } catch (error) {
+    if (error.name === 'AbortError' || solicitud !== solicitudActividad) return;
     console.error('Error consultando actividad:', error);
     el.activityLoading.hidden = true;
     el.activityError.hidden = false;
@@ -952,7 +989,7 @@ function renderUsuariosPerfil() {
 
 async function pedirRankingPersonal(usuarioId, tipo, dias, limite = 5) {
   const params = new URLSearchParams({ scope: 'individual', usuario_id: usuarioId, tipo, dias, limit: limite, offset: 0 });
-  const response = await fetch(`/api/charts?${params}`);
+  const response = await vistaFetch(`/api/charts?${params}`, 'perfil');
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
@@ -960,6 +997,8 @@ async function pedirRankingPersonal(usuarioId, tipo, dias, limite = 5) {
 async function cargarPerfil() {
   if (!state.profileUserId) return;
   const solicitud = ++solicitudPerfil;
+  const usuarioId = state.profileUserId;
+  nuevoGrupo('perfil');
   const usuario = state.usuarios.find((item) => item.id === state.profileUserId);
   if (!usuario) return;
   el.profileName.textContent = `El perfil musical de ${usuario.nombre_display}`;
@@ -969,15 +1008,16 @@ async function cargarPerfil() {
   el.profileError.hidden = true;
   el.profileContent.hidden = true;
   try {
-    const mesActual = await fetch('/api/activity?scope=individual&usuario_id=' + encodeURIComponent(state.profileUserId));
+    const mesActual = await vistaFetch('/api/activity?scope=individual&usuario_id=' + encodeURIComponent(usuarioId), 'perfil');
     if (!mesActual.ok) throw new Error(`HTTP ${mesActual.status}`);
     const actividad = await mesActual.json();
+    if (solicitud !== solicitudPerfil) return;
     const [cancionesAll, artistasAll, albumesAll, canciones30, artistas30] = await Promise.all([
-      pedirRankingPersonal(state.profileUserId, 'canciones', DIAS_TODO_EL_TIEMPO),
-      pedirRankingPersonal(state.profileUserId, 'artistas', DIAS_TODO_EL_TIEMPO),
-      pedirRankingPersonal(state.profileUserId, 'albumes', DIAS_TODO_EL_TIEMPO),
-      pedirRankingPersonal(state.profileUserId, 'canciones', 30, 1),
-      pedirRankingPersonal(state.profileUserId, 'artistas', 30, 1)
+      pedirRankingPersonal(usuarioId, 'canciones', DIAS_TODO_EL_TIEMPO),
+      pedirRankingPersonal(usuarioId, 'artistas', DIAS_TODO_EL_TIEMPO),
+      pedirRankingPersonal(usuarioId, 'albumes', DIAS_TODO_EL_TIEMPO),
+      pedirRankingPersonal(usuarioId, 'canciones', 30, 1),
+      pedirRankingPersonal(usuarioId, 'artistas', 30, 1)
     ]);
     if (solicitud !== solicitudPerfil) return;
     const datos = { usuario, actividad, cancionesAll, artistasAll, albumesAll, canciones30: canciones30[0] || null, artistas30: artistas30[0] || null };
@@ -986,7 +1026,7 @@ async function cargarPerfil() {
     el.profileLoading.hidden = true;
     el.profileContent.hidden = false;
   } catch (error) {
-    if (solicitud !== solicitudPerfil) return;
+    if (error.name === 'AbortError' || solicitud !== solicitudPerfil) return;
     console.error('Error consultando perfil:', error);
     el.profileLoading.hidden = true;
     el.profileError.hidden = false;
@@ -1140,7 +1180,12 @@ el.activityCalendar.addEventListener('click', (event) => {
 // Navegación entre vistas
 // ------------------------------------------------------------
 function switchView(view) {
+  cancelarPeticionesVista();
+  ultimaSolicitudChart++;
+  solicitudActividad++;
+  solicitudPerfil++;
   state.view = view;
+  el.top3Section.hidden = view === 'profile';
   el.mainNav.querySelectorAll('.nav-link').forEach((b) => {
     const active = b.dataset.view === view;
     b.classList.toggle('active', active);
@@ -1165,6 +1210,7 @@ function switchView(view) {
     el.insightsSection.hidden = false;
     el.activitySection.hidden = false;
     el.profileSection.hidden = true;
+    actualizarTicker();
     cargarOverview();
   } else if (view === 'profile') {
     el.nowPlayingSection.hidden = true;
@@ -1328,7 +1374,14 @@ async function init() {
   else switchView(state.view);
 
   setInterval(actualizarTicker, 20 * 1000);
-  setInterval(actualizarBarrasDeProgreso, 1000);
+  setInterval(() => { if (!document.hidden && state.view === 'overview') actualizarBarrasDeProgreso(); }, 1000);
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { cancelarPeticionesVista(); return; }
+  if (state.view === 'overview') { actualizarTicker(); cargarOverview(); }
+  else if (state.view === 'profile') cargarPerfil();
+  else actualizarChart(true);
+});
 
 init();

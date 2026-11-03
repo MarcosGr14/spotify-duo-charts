@@ -17,4 +17,17 @@ pool.on('error', (err) => {
   console.error('Error en el pool de Postgres:', err.code || 'DB_ERROR');
 });
 
+const metrics = { queries: 0, failures: 0, slow: 0, totalMs: 0 };
+const query = pool.query.bind(pool);
+pool.query = async (...args) => {
+  const start = performance.now();
+  metrics.queries++;
+  try { return await query(...args); }
+  catch (err) { metrics.failures++; throw err; }
+  finally {
+    const elapsed = performance.now() - start; metrics.totalMs += elapsed;
+    if (elapsed >= 500) metrics.slow++;
+  }
+};
+pool.performanceStats = () => ({ ...metrics, connections: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount });
 module.exports = pool;

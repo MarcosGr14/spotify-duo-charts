@@ -41,6 +41,12 @@ function verificarTokenIntegracion(req, res, next) {
 
 router.use(verificarTokenIntegracion);
 
+router.get('/performance', (_req,res) => {
+  res.set('Cache-Control','no-store');
+  res.json({ uptimeSeconds: Math.round(process.uptime()), rssMB: Math.round(process.memoryUsage().rss/1024/1024),
+    database: db.performanceStats(), cache: require('./responseCache').cacheStats() });
+});
+
 // GET /api/integrations/health
 router.get('/health', (_req, res) => {
   res.status(200).json({
