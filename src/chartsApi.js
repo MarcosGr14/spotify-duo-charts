@@ -104,7 +104,7 @@ const QUERY_CANCIONES = `
        WHERE ca2.cancion_id = c.id AND ar2.nombre ILIKE '%' || $5 || '%'
      )
   GROUP BY c.id, c.nombre, al.imagen_url, ra.posicion, ra.plays, ran.posicion
-  ORDER BY ra.posicion
+  ORDER BY ra.posicion, c.id
   LIMIT $3 OFFSET $4
 `;
 
@@ -146,7 +146,7 @@ const QUERY_ARTISTAS = `
   JOIN artistas a ON a.id = ra.artista_id
   LEFT JOIN rank_anterior ran ON ran.artista_id = ra.artista_id
   WHERE $5::text IS NULL OR a.nombre ILIKE '%' || $5 || '%'
-  ORDER BY ra.posicion
+  ORDER BY ra.posicion, a.id
   LIMIT $3 OFFSET $4
 `;
 
@@ -201,7 +201,7 @@ const QUERY_ALBUMES = `
        WHERE c4.album_id = al.id AND ar4.nombre ILIKE '%' || $5 || '%'
      )
   GROUP BY al.id, al.nombre, al.imagen_url, ra.posicion, ra.plays, ran.posicion
-  ORDER BY ra.posicion
+  ORDER BY ra.posicion, al.id
   LIMIT $3 OFFSET $4
 `;
 
@@ -221,7 +221,7 @@ router.get('/charts', async (req, res) => {
     scope === 'individual' && req.query.usuario_id
       ? parseInt(req.query.usuario_id, 10)
       : null;
-  const tipo = QUERIES_POR_TIPO[req.query.tipo] ? req.query.tipo : 'canciones';
+  const tipo = Object.hasOwn(QUERIES_POR_TIPO, req.query.tipo) ? req.query.tipo : 'canciones';
   // El dashboard usa 20 por página; CSV puede pedir hasta 5001 para
   // detectar y comunicar si se alcanza su límite de exportación (5000).
   const limiteSolicitado = Number.parseInt(req.query.limit, 10);

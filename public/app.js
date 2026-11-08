@@ -580,15 +580,19 @@ function construirParams(offset) {
 }
 
 let ultimaSolicitudChart = 0;
+const idsChartMostrados = new Set();
 
 // reset=true: cambió el tab/periodo/cuenta/búsqueda, arranca de cero.
 // reset=false: es "Load more", agrega al final de la lista.
 async function actualizarChart(reset = true) {
+  if (!VISTA_A_TIPO[state.view] || (!reset && el.loadMoreBtn.disabled)) return;
+  const offsetSolicitado = reset ? 0 : state.offset;
+  el.emptyState.hidden = true;
   if (reset) state.offset = 0;
 
   const idSolicitud = ++ultimaSolicitudChart;
   nuevoGrupo('chart');
-  const params = construirParams(state.offset);
+  const params = construirParams(offsetSolicitado);
 
   if (reset) {
     el.emptyState.hidden = true;
@@ -596,6 +600,7 @@ async function actualizarChart(reset = true) {
     el.loadingState.hidden = false;
     el.chartList.classList.add('loading');
     el.loadMoreBtn.hidden = true;
+    el.loadMoreBtn.disabled = true;
   } else {
     el.loadMoreBtn.textContent = 'Loading…';
     el.loadMoreBtn.disabled = true;
@@ -618,9 +623,16 @@ async function actualizarChart(reset = true) {
     const { titulo } = TITULOS_POR_VISTA[state.view] || TITULOS_POR_VISTA.songs;
     const subtitulo = state.dias === 'all' ? 'All time' : state.dias === 1 ? 'Today' : `${state.dias} days`;
 
+    // El historial puede actualizarse entre páginas: un mismo ID se dibuja una sola vez.
+    if (reset) idsChartMostrados.clear();
+    const nuevos = data.filter((item) => {
+      if (idsChartMostrados.has(item.id)) return false;
+      idsChartMostrados.add(item.id);
+      return true;
+    });
     if (reset) {
-      const top3 = data.slice(0, 3);
-      const resto = data.slice(3);
+      const top3 = nuevos.slice(0, 3);
+      const resto = nuevos.slice(3);
       renderTop3(top3, titulo, subtitulo, esAvatar, false);
 
       if (!data.length) {
@@ -635,11 +647,12 @@ async function actualizarChart(reset = true) {
     } else {
       el.chartList.insertAdjacentHTML(
         'beforeend',
-        data.map((item) => renderFila(item, esAvatar, modoSinComparacion)).join('')
+        nuevos.map((item) => renderFila(item, esAvatar, modoSinComparacion)).join('')
       );
     }
 
-    state.offset += data.length;
+    // Avanzar por filas recibidas, no por las nuevas tras quitar duplicados.
+    state.offset = offsetSolicitado + data.length;
     el.loadMoreBtn.hidden = data.length < LIMITE_POR_PAGINA;
   } catch (err) {
     if (err.name === 'AbortError' || idSolicitud !== ultimaSolicitudChart) return;
@@ -656,6 +669,9 @@ async function actualizarChart(reset = true) {
           : 'The server returned an invalid response. Check its terminal output, then try again.';
       el.emptyState.hidden = false;
       el.retryChartBtn.hidden = false;
+    } else {
+      el.emptyState.textContent = 'Could not load more. Try again.';
+      el.emptyState.hidden = false;
     }
     console.error('Error consultando charts:', err);
   }
@@ -1340,6 +1356,7 @@ el.scopePills.addEventListener('click', (e) => {
 // Búsqueda
 // ------------------------------------------------------------
 function cerrarBusqueda(recargar = true) {
+  clearTimeout(debounceBusqueda);
   el.searchOverlay.hidden = true;
   el.searchInput.value = '';
   if (state.busqueda) {

@@ -169,6 +169,36 @@ describeSiHayDB('cálculo de rankings (requiere TEST_DATABASE_URL)', () => {
     expect(Number(rows[0].veces_escuchada)).toBe(7); // 4 + 3
   });
 
+  test.each(Object.entries(chartsApi.QUERIES_POR_TIPO))(
+    '%s: páginas sin solapamiento cuando hay empates en el límite de 20',
+    async (_tipo, query) => {
+      await pool.query(`
+        INSERT INTO artistas (id, spotify_artist_id, nombre)
+          SELECT n, 'a' || n, 'Artista ' || n FROM generate_series(1,43) n;
+        INSERT INTO albumes (id, spotify_album_id, nombre)
+          SELECT n, 'al' || n, 'Álbum ' || n FROM generate_series(1,43) n;
+        INSERT INTO canciones (id, spotify_track_id, nombre, album_id)
+          SELECT n, 't' || n, 'Tema ' || n, n FROM generate_series(1,43) n;
+        INSERT INTO cancion_artistas (cancion_id, artista_id)
+          SELECT n, n FROM generate_series(1,43) n;
+        INSERT INTO reproducciones (usuario_id, cancion_id, reproducido_en)
+          SELECT 1, n, now() - make_interval(secs => play)
+          FROM generate_series(1,43) n
+          CROSS JOIN LATERAL generate_series(1, CASE WHEN n <= 19 THEN 22-n ELSE 1 END) play;
+      `);
+      const all = (await pool.query(query, [7, null, 100, 0, null])).rows;
+      const pages = [];
+      for (const offset of [0, 20, 40]) {
+        pages.push(...(await pool.query(query, [7, null, 20, offset, null])).rows);
+      }
+      expect(pages.map(r => r.id)).toEqual(all.map(r => r.id));
+      expect(new Set(pages.map(r => r.id)).size).toBe(43);
+      expect(pages.slice(19).map(r => r.id)).toEqual(Array.from({length: 24}, (_, n) => n + 20));
+      // Desempatar el orden no cambia las posiciones compartidas por reproducciones.
+      expect(pages.slice(19).every(r => r.posicion === 20)).toBe(true);
+    }
+  );
+
   test('una búsqueda sin resultados no rompe, devuelve array vacío', async () => {
     await insertarCancion({ spotifyId: 't1', nombre: 'Algo', artista: 'X' });
     const { rows } = await pool.query(QUERY_CANCIONES, [7, null, 20, 0, 'ArtistaQueNoExiste']);
