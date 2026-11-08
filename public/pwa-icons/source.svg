@@ -1,0 +1,12 @@
+<svg class="brand-mark" viewBox="0 0 44 44" width="512" height="512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="22" cy="22" r="20" fill="#191c24" stroke="#45464d" stroke-width="1.5"/>
+        <g stroke="#8d8d98" stroke-width="1.2" stroke-linecap="round" opacity="0.6">
+          <line x1="22" y1="4" x2="22" y2="8"/>
+          <line x1="22" y1="36" x2="22" y2="40"/>
+          <line x1="4" y1="22" x2="8" y2="22"/>
+          <line x1="36" y1="22" x2="40" y2="22"/>
+        </g>
+        <circle cx="22" cy="22" r="13" fill="#12141a" stroke="#34353c" stroke-width="1"/>
+        <line x1="22" y1="22" x2="29" y2="13" stroke="#ff5f6d" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="22" cy="22" r="2.4" fill="#ff5f6d"/>
+      </svg>

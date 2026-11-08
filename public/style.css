@@ -1160,3 +1160,68 @@ section + section { margin-top: clamp(24px, 3.5vw, 38px); }
   .match-ring-fill { transition: none; }
   .balance-bar-fill { transition: none; }
 }
+
+/* Adaptación instalable: conserva la navegación y las superficies existentes. */
+body { min-height: 100dvh; }
+.topbar {
+  padding-top: calc(16px + env(safe-area-inset-top, 0px));
+  padding-left: max(clamp(20px, 4vw, 48px), env(safe-area-inset-left, 0px));
+  padding-right: max(clamp(20px, 4vw, 48px), env(safe-area-inset-right, 0px));
+}
+.main {
+  padding-left: max(clamp(16px, 4vw, 48px), env(safe-area-inset-left, 0px));
+  padding-right: max(clamp(16px, 4vw, 48px), env(safe-area-inset-right, 0px));
+}
+.search-overlay {
+  top: var(--topbar-height, 72px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.search-input-lg { min-width: 0; font-size: 16px; }
+.footer { flex-wrap: wrap; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+button, a, summary, [role="button"] { touch-action: manipulation; }
+button, summary { -webkit-user-select: none; user-select: none; }
+.pwa-section {
+  max-width: 1184px;
+  margin: 0 auto 24px;
+  padding: 0 max(16px, env(safe-area-inset-left, 0px)) 0 max(16px, env(safe-area-inset-right, 0px));
+  font-size: .82rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.pwa-section summary { width: fit-content; max-width: 100%; cursor: pointer; color: var(--text); padding: 12px 0; }
+.pwa-section p { max-width: 65ch; margin: 8px 0; }
+.pwa-section strong { color: var(--text); }
+.pwa-section button { min-height: 44px; white-space: normal; }
+#pwa-update { margin-top: 16px; padding: 16px 0; border-top: 1px solid var(--border-strong); }
+#pwa-update-button { margin: 8px; }
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px; }
+  .nav-link, .icon-btn, .activity-nav, .pills button, .profile-users button { min-height: 44px; }
+  .icon-btn, .activity-nav { min-width: 44px; }
+}
+@media (max-width: 620px) {
+  .topbar { padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
+  .main-nav { min-width: 0; }
+  #pwa-update-button { margin-left: 0; }
+}
+/* La web existente era oscura; estos tokens siguen la preferencia del sistema. */
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #f5f5f7; --surface: #ffffff; --elevated: #e8e9ef;
+    --text: #191c24; --text-muted: #535360;
+    --border: rgba(25,28,36,.14); --border-strong: rgba(25,28,36,.28);
+    --up: #17743a; --down: #b42332;
+  }
+  .topbar { background: rgba(245,245,247,.96); border-bottom-color: var(--border); }
+  .recap-card { color: #f5f5f7; --text: #f5f5f7; --text-muted: #b7b7c3; }
+  .pills button.active, .activity-toolbar .pills button.active { color: var(--accent-ink); }
+}
+@media (prefers-color-scheme: light) {
+  .activity-kicker, .activity-state button, .calendar-detail span, .profile-state button, .profile-rank {
+    color: color-mix(in srgb, var(--accent-fixed) 52%, #191c24);
+  }
+  .heat-cell { background-color: var(--border); }
+}
+.top3-card { min-width: 0; }

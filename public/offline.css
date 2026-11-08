@@ -1,0 +1,8 @@
+:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #0b0b0f; color: #f5f5f7; }
+body { margin: 0; padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
+main { max-width: 34rem; margin: 15vh auto; line-height: 1.6; }
+h1 { line-height: 1.15; font-size: clamp(2rem, 6vw, 3rem); }
+p { color: #b0b0bb; }
+a { display: inline-block; padding: 12px 18px; border-radius: 8px; background: #ff5f6d; color: #101116; font-weight: 700; text-decoration: none; }
+a:focus-visible { outline: 3px solid currentColor; outline-offset: 4px; }
+@media (prefers-color-scheme: light) { :root { color-scheme: light; background: #f5f5f7; color: #191c24; } p { color: #535360; } }

@@ -64,3 +64,7 @@ La interfaz consulta la API de la aplicación, mientras el servidor mantiene la 
 ---
 
 Proyecto personal e independiente. No está afiliado a Spotify ni respaldado por Spotify.
+
+## App instalable
+
+Duo Charts también está preparada para instalarse como PWA, conservando la web y los mismos datos. Android ofrece la instalación desde Chrome; en iPhone se añade desde Compartir en Safari. Los rankings y las escuchas necesitan conexión. Consulta la [guía de instalación y mantenimiento](docs/PWA.md).

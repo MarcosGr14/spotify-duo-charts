@@ -54,7 +54,10 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-app.use(express.static(path.join(__dirname, '..', 'public')));
+require('./pwa').configurePwa(app);
+app.use(express.static(path.join(__dirname, '..', 'public'), { setHeaders(res, file) {
+  if (/\.(?:html|js|css|webmanifest)$/.test(file)) res.set('Cache-Control', 'no-store');
+} }));
 
 // Sentry captura automáticamente los errores que ocurran en las rutas
 // HTTP de arriba. Va después de las rutas, antes de cualquier otro

@@ -986,8 +986,13 @@ function aplicarColorPerfil(color = '#ff5f6d') {
   state.profileColor = /^#[0-9a-f]{6}$/i.test(color) ? color : '#ff5f6d';
   document.documentElement.style.setProperty('--accent-fixed', state.profileColor);
   const rgb = state.profileColor.slice(1).match(/.{2}/g).map((parte) => parseInt(parte, 16));
-  const luminosidad = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
-  document.documentElement.style.setProperty('--accent-ink', luminosidad >= 145 ? '#101116' : '#ffffff');
+  const luminancia = (canales) => canales.map((n) => {
+    const s = n / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  }).reduce((total, n, i) => total + n * [0.2126, 0.7152, 0.0722][i], 0);
+  const luz = luminancia(rgb);
+  const contrasteOscuro = (luz + 0.05) / (luminancia([16,17,22]) + 0.05);
+  const contrasteClaro = 1.05 / (luz + 0.05);
+  document.documentElement.style.setProperty('--accent-ink', contrasteOscuro >= contrasteClaro ? '#101116' : '#ffffff');
   el.profileCustomColor.value = state.profileColor;
   el.profileColors.querySelectorAll('[data-color]').forEach((button) => {
     button.classList.toggle('selected', button.dataset.color.toLowerCase() === state.profileColor.toLowerCase());
